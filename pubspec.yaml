@@ -79,6 +79,9 @@ dependencies:
   # Location
   geolocator: ^11.0.0
   
+  # Environment Variables
+  flutter_dotenv: ^5.1.0
+  
   # Analytics & Monitoring
   #firebase_core: ^3.6.0
   #firebase_crashlytics: ^4.1.3

@@ -1,15 +1,15 @@
-import 'environment_config.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// API endpoints configuration that adapts based on environment
 class ApiEndpoints {
-  static String get baseUrl => EnvironmentConfig.baseUrl;
+  static String get baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://192.168.160.225';
 
   // Auth endpoints
-  static String get login => '$baseUrl:8097/v1/Account/LoginUser';
+  static String get login => '$baseUrl${dotenv.env['API_LOGIN_ENDPOINT'] ?? ':8097/v1/Account/LoginUser'}';
 
   // Password management
   static String get changePassword =>
-      '$baseUrl:8097/v1/Account/api/ChangePassword';
+      '$baseUrl${dotenv.env['API_CHANGE_PASSWORD_ENDPOINT'] ?? ':8097/v1/Account/api/ChangePassword'}';
 
   /// Get endpoint with query parameters
   static String withQuery(String endpoint, Map<String, String> params) {
@@ -34,15 +34,16 @@ class ApiEndpoints {
 }
 
 class ApiServiceEndpoints {
-  static String get baseUrl => EnvironmentConfig.baseUrl;
+  static String get baseUrl => dotenv.env['API_SERVICE_URL'] ?? 'http://192.168.160.225';
+  
   // Data endpoints
-  static String get dataSPB => '$baseUrl:8098/v1/SPB/api/GetSPBForDriver';
+  static String get dataSPB => '$baseUrl${dotenv.env['API_SPB_DATA_ENDPOINT'] ?? ':8098/v1/SPB/api/GetSPBForDriver'}';
 
   static String get AcceptSPBDriver =>
-      '$baseUrl:8098/v1/SPB/api/AcceptSPBByDriver';
+      '$baseUrl${dotenv.env['API_ACCEPT_SPB_ENDPOINT'] ?? ':8098/v1/SPB/api/AcceptSPBByDriver'}';
 
   static String get AdjustSPBDriver =>
-      '$baseUrl:8098/v1/SPB/api/AdjustSPBByDriver';
+      '$baseUrl${dotenv.env['API_ADJUST_SPB_ENDPOINT'] ?? ':8098/v1/SPB/api/AdjustSPBByDriver'}';
 
   /// Get endpoint with query parameters
   static String withQuery(String endpoint, Map<String, String> params) {

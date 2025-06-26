@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Environment types supported by the application
 enum Environment { development, staging, production }
@@ -19,10 +20,7 @@ class EnvironmentConfig {
 
     try {
       // Determine environment from ENV variable
-      final envString =
-          Platform.environment['FLUTTER_ENV'] ??
-          Platform.environment['ENV'] ??
-          'development';
+      final envString = dotenv.env['FLUTTER_ENV'] ?? 'development';
 
       _currentEnvironment = _parseEnvironment(envString);
 
@@ -59,35 +57,28 @@ class EnvironmentConfig {
 
   /// Load configuration based on current environment
   static Future<void> _loadConfiguration() async {
-    final env = Platform.environment;
-
     switch (_currentEnvironment!) {
       case Environment.development:
-        _baseUrl = _getRequiredEnvVar(
-          env,
-          'DEV_API_BASE_URL',
-          'http://192.168.160.225',
-        );
-        // _baseUrl = _getRequiredEnvVar(env, 'DEV_API_BASE_URL');
-        _enableLogging = _getBoolEnvVar(env, 'DEV_ENABLE_LOGGING', true);
+        _baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://192.168.160.225';
+        _enableLogging = _getBoolEnvVar('ENABLE_LOGGING', true);
         _timeout = Duration(
-          seconds: _getIntEnvVar(env, 'DEV_TIMEOUT_SECONDS', 30),
+          seconds: _getIntEnvVar('API_TIMEOUT_SECONDS', 30),
         );
         break;
 
       case Environment.staging:
-        _baseUrl = _getRequiredEnvVar(env, 'STAGING_API_BASE_URL');
-        _enableLogging = _getBoolEnvVar(env, 'STAGING_ENABLE_LOGGING', false);
+        _baseUrl = _getRequiredEnvVar('API_BASE_URL');
+        _enableLogging = _getBoolEnvVar('ENABLE_LOGGING', false);
         _timeout = Duration(
-          seconds: _getIntEnvVar(env, 'STAGING_TIMEOUT_SECONDS', 60),
+          seconds: _getIntEnvVar('API_TIMEOUT_SECONDS', 60),
         );
         break;
 
       case Environment.production:
-        _baseUrl = _getRequiredEnvVar(env, 'PROD_API_BASE_URL');
-        _enableLogging = _getBoolEnvVar(env, 'PROD_ENABLE_LOGGING', false);
+        _baseUrl = _getRequiredEnvVar('API_BASE_URL');
+        _enableLogging = _getBoolEnvVar('ENABLE_LOGGING', false);
         _timeout = Duration(
-          seconds: _getIntEnvVar(env, 'PROD_TIMEOUT_SECONDS', 120),
+          seconds: _getIntEnvVar('API_TIMEOUT_SECONDS', 120),
         );
         break;
     }
@@ -97,12 +88,8 @@ class EnvironmentConfig {
   }
 
   /// Get required environment variable with optional default
-  static String _getRequiredEnvVar(
-    Map<String, String> env,
-    String key, [
-    String? defaultValue,
-  ]) {
-    final value = env[key] ?? defaultValue;
+  static String _getRequiredEnvVar(String key, [String? defaultValue]) {
+    final value = dotenv.env[key] ?? defaultValue;
     if (value == null || value.isEmpty) {
       throw EnvironmentConfigException(
         'Required environment variable $key is not set',
@@ -112,12 +99,8 @@ class EnvironmentConfig {
   }
 
   /// Get boolean environment variable with default
-  static bool _getBoolEnvVar(
-    Map<String, String> env,
-    String key,
-    bool defaultValue,
-  ) {
-    final value = env[key];
+  static bool _getBoolEnvVar(String key, bool defaultValue) {
+    final value = dotenv.env[key];
     if (value == null) return defaultValue;
 
     switch (value.toLowerCase()) {
@@ -138,12 +121,8 @@ class EnvironmentConfig {
   }
 
   /// Get integer environment variable with default
-  static int _getIntEnvVar(
-    Map<String, String> env,
-    String key,
-    int defaultValue,
-  ) {
-    final value = env[key];
+  static int _getIntEnvVar(String key, int defaultValue) {
+    final value = dotenv.env[key];
     if (value == null) return defaultValue;
 
     final parsed = int.tryParse(value);
