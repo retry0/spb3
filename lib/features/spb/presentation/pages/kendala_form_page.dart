@@ -4,18 +4,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import '../pages/spb_page.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/config/api_endpoints.dart';
 import '../../data/models/spb_model.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../pages/spb_page.dart';
-import '../bloc/espb_form_bloc.dart';
-import '../bloc/espb_form_event.dart';
-import '../bloc/espb_form_state.dart';
-import '../../data/models/espb_form_data.dart';
-import '../widgets/espb_form_sync_indicator.dart';
 
 class KendalaFormPage extends StatefulWidget {
   final SpbModel spb;
@@ -45,10 +39,6 @@ class _KendalaFormPageState extends State<KendalaFormPage>
 
   // Form key for validation
   final _formKey = GlobalKey<FormState>();
-  
-  // For form submission tracking
-  String? _submittedFormId;
-  bool _isSubmitted = false;
 
   @override
   void initState() {
@@ -144,10 +134,12 @@ class _KendalaFormPageState extends State<KendalaFormPage>
             TextButton(
               child: const Text('Batal'),
               onPressed: () {
+                // Navigator.of(context).pop();
+                // Navigator.of(context).pop(); // Go back to previous screen
                 // Navigate to Kendala Form page
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SpbPage()),
+                  MaterialPageRoute(builder: (context) => SpbPage()),
                 );
               },
             ),
@@ -190,9 +182,10 @@ class _KendalaFormPageState extends State<KendalaFormPage>
             TextButton(
               child: const Text('Batal'),
               onPressed: () {
+                // Navigator.of(context).pop();
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SpbPage()),
+                  MaterialPageRoute(builder: (context) => SpbPage()),
                 );
               },
             ),
@@ -231,9 +224,10 @@ class _KendalaFormPageState extends State<KendalaFormPage>
             TextButton(
               child: const Text('Batal'),
               onPressed: () {
+                // Navigator.of(context).pop();
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SpbPage()),
+                  MaterialPageRoute(builder: (context) => SpbPage()),
                 );
               },
             ),
@@ -275,6 +269,10 @@ class _KendalaFormPageState extends State<KendalaFormPage>
         setState(() {
           _isConnected = hasConnectivity;
         });
+        // If connection is restored, try to sync
+        if (hasConnectivity && !_isConnected) {
+          _syncData();
+        }
       }
     });
   }
@@ -345,40 +343,42 @@ class _KendalaFormPageState extends State<KendalaFormPage>
     try {
       // Save to local storage first
       await _saveToLocalStorage();
-      
-      // Get current position if not already available
-      if (_currentPosition == null) {
-        try {
-          _currentPosition = await Geolocator.getCurrentPosition();
-        } catch (e) {
-          // Use default coordinates if location not available
-          _currentPosition = null;
-        }
+      // Try to sync with server if connected
+      if (_isConnected) {
+        await _syncData();
       }
-
-      // Use position or default to 0,0 if not available
-      final lat = _currentPosition?.latitude ?? 0.0;
-      final long = _currentPosition?.longitude ?? 0.0;
-
-      final String latitude = lat.toString();
-      final String longitude = long.toString();
-      
-      // Save form data using BLoC
-      context.read<EspbFormBloc>().add(
-        SaveKendalaFormRequested(
-          noSpb: widget.spb.noSpb,
-          alasan: _kendalaController.text,
-          isDriverOrVehicleChanged: _isDriverOrVehicleChanged,
-          latitude: latitude,
-          longitude: longitude,
-          createdBy: widget.spb.driver ?? '',
-        ),
-      );
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Kendala berhasil disimpan'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+        // Navigate back after successful save
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            Navigator.of(context).pop(true); // Return true to indicate success
+          }
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Error saving data: $e';
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Error saving data: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -403,6 +403,61 @@ class _KendalaFormPageState extends State<KendalaFormPage>
       'kendala_timestamp_$spbId',
       DateTime.now().millisecondsSinceEpoch,
     );
+  }
+
+  Future<void> _syncData() async {
+    try {
+      // Get current position if not already available
+      if (_currentPosition == null) {
+        try {
+          _currentPosition = await Geolocator.getCurrentPosition();
+        } catch (e) {
+          // Use default coordinates if location not available
+          _currentPosition = null;
+        }
+      }
+
+      // Use position or default to 0,0 if not available
+      final lat = _currentPosition?.latitude ?? 0.0;
+      final long = _currentPosition?.longitude ?? 0.0;
+
+      final String latitude = lat.toString();
+      final String longitude = long.toString();
+
+      final prefs = await SharedPreferences.getInstance();
+      final spbId = widget.spb.noSpb;
+      // Check if already synced
+      final isSynced = prefs.getBool('kendala_synced_$spbId') ?? false;
+      if (isSynced) return;
+
+      // Prepare data for API
+      final data = {
+        'noSPB': widget.spb.noSpb,
+        'latitude': latitude,
+        'longitude': longitude,
+        'createdBy': widget.spb.driver.toString(),
+        'status': "2", // Set status to indicate kendala/issue
+        'alasan': _kendalaController.text,
+        'isAnyHandlingEx': _isDriverOrVehicleChanged.toString(),
+      };
+
+      // Call API to update SPB status
+      final response = await _dio.put(
+        ApiServiceEndpoints.AdjustSPBDriver,
+        data: data,
+      );
+
+      if (response.statusCode == 200) {
+        // Mark as synced in local storage
+        await prefs.setBool('kendala_synced_$spbId', true);
+      } else {
+        throw Exception('Failed to sync data: ${response.statusCode}');
+      }
+    } catch (e) {
+      // Just log the error but don't throw - we'll try to sync again later
+      print('Sync error: $e');
+      // We don't set _errorMessage here as the local save was successful
+    }
   }
 
   void _showConfirmationDialog() {
@@ -465,151 +520,50 @@ class _KendalaFormPageState extends State<KendalaFormPage>
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => getIt<EspbFormBloc>(),
-      child: BlocListener<EspbFormBloc, EspbFormState>(
-        listener: (context, state) {
-          if (state is EspbFormSaving) {
-            setState(() {
-              _isLoading = true;
-            });
-          } else if (state is EspbFormSaved) {
-            setState(() {
-              _submittedFormId = state.formData.id;
-              _isSubmitted = true;
-            });
-          } else if (state is EspbFormSynced) {
-            // Show success message
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Kendala berhasil disimpan'),
-                backgroundColor: Colors.green,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                margin: const EdgeInsets.all(16),
-              ),
-            );
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Form Keterangan Kendala'),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+        ),
+      ),
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: SlideTransition(
+          position: _slideAnimation,
+          child: SafeArea(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Status indicators
+                    _buildStatusIndicators(),
 
-            // Navigate back after successful save
-            Future.delayed(const Duration(seconds: 1), () {
-              if (mounted) {
-                Navigator.of(context).pop(true); // Return true to indicate success
-              }
-            });
-          } else if (state is EspbFormSyncFailed) {
-            // Show warning but don't navigate back
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Kendala disimpan tetapi belum tersinkronisasi: ${state.message}'),
-                backgroundColor: Colors.orange,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                margin: const EdgeInsets.all(16),
-                action: SnackBarAction(
-                  label: 'Retry',
-                  textColor: Colors.white,
-                  onPressed: () {
-                    if (_submittedFormId != null) {
-                      context.read<EspbFormBloc>().add(
-                        SyncFormRequested(formId: _submittedFormId!),
-                      );
-                    }
-                  },
-                ),
-              ),
-            );
-            
-            setState(() {
-              _isLoading = false;
-            });
-          } else if (state is EspbFormError) {
-            setState(() {
-              _isLoading = false;
-              _errorMessage = state.message;
-            });
-          }
-        },
-        child: Scaffold(
-          appBar: AppBar(
-            title: const Text('Form Keterangan Kendala'),
-            centerTitle: true,
-            elevation: 0,
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ),
-          body: FadeTransition(
-            opacity: _fadeAnimation,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: SafeArea(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Status indicators
-                        _buildStatusIndicators(),
-                        
-                        // Form submission status
-                        if (_isSubmitted && _submittedFormId != null)
-                          BlocBuilder<EspbFormBloc, EspbFormState>(
-                            builder: (context, state) {
-                              if (state is EspbFormSaved || 
-                                  state is EspbFormSyncLoading ||
-                                  state is EspbFormSynced ||
-                                  state is EspbFormSyncFailed) {
-                                EspbFormData? formData;
-                                
-                                if (state is EspbFormSaved) {
-                                  formData = state.formData;
-                                } else if (state is EspbFormSyncLoading) {
-                                  formData = state.formData;
-                                } else if (state is EspbFormSynced) {
-                                  formData = state.formData;
-                                } else if (state is EspbFormSyncFailed) {
-                                  formData = state.formData;
-                                }
-                                
-                                if (formData != null) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: EspbFormSyncIndicator(formData: formData),
-                                  );
-                                }
-                              }
-                              return const SizedBox.shrink();
-                            },
-                          ),
+                    const SizedBox(height: 16),
 
-                        const SizedBox(height: 16),
+                    // SPB Info Card
+                    _buildSpbInfoCard(),
 
-                        // SPB Info Card
-                        _buildSpbInfoCard(),
+                    const SizedBox(height: 24),
 
-                        const SizedBox(height: 24),
+                    // Kendala Form Card
+                    _buildKendalaFormCard(),
 
-                        // Kendala Form Card
-                        _buildKendalaFormCard(),
+                    const SizedBox(height: 24),
 
-                        const SizedBox(height: 24),
-
-                        // Submit Button
-                        _buildSubmitButton(),
-                      ],
-                    ),
-                  ),
+                    // Submit Button
+                    _buildSubmitButton(),
+                  ],
                 ),
               ),
             ),
@@ -831,7 +785,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
                   'Centang jika terjadi pergantian driver atau kendaraan',
                 ),
                 value: _isDriverOrVehicleChanged,
-                onChanged: _isSubmitted ? null : (value) {
+                onChanged: (value) {
                   setState(() {
                     _isDriverOrVehicleChanged = value ?? false;
                     // Clear error message when checkbox changes
@@ -855,7 +809,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
             // Kendala details textbox
             TextFormField(
               controller: _kendalaController,
-              enabled: _isDriverOrVehicleChanged && !_isSubmitted,
+              enabled: _isDriverOrVehicleChanged,
               decoration: InputDecoration(
                 labelText: 'Keterangan Kendala',
                 hintText:
@@ -889,7 +843,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
                 ),
                 filled: true,
                 fillColor:
-                    _isDriverOrVehicleChanged && !_isSubmitted
+                    _isDriverOrVehicleChanged
                         ? Theme.of(context).colorScheme.surface
                         : Theme.of(
                           context,
@@ -921,7 +875,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
               },
               style: TextStyle(
                 color:
-                    _isDriverOrVehicleChanged && !_isSubmitted
+                    _isDriverOrVehicleChanged
                         ? Theme.of(context).colorScheme.onSurface
                         : Theme.of(
                           context,
@@ -971,7 +925,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: _isLoading || _isSubmitted ? null : _showConfirmationDialog,
+        onPressed: _isLoading ? null : _showConfirmationDialog,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppTheme.errorColor,
           foregroundColor: Colors.white,
@@ -997,7 +951,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
                     Icon(
                       Icons.report_problem_outlined,
                       color:
-                          _isDriverOrVehicleChanged && _isGpsActive && !_isSubmitted
+                          _isDriverOrVehicleChanged && _isGpsActive
                               ? Colors.white
                               : Colors.grey.shade400,
                     ),
