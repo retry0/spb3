@@ -15,9 +15,9 @@ SpbModel _$SpbModelFromJson(Map<String, dynamic> json) => SpbModel(
       kodeVendor: json['kodeVendor'] as String?,
       driver: json['driver'] as String?,
       noPolisi: json['noPolisi'] as String?,
-      jumJjg: (json['jumJjg'] as num?)?.toInt(),
-      brondolan: (json['brondolan'] as num?)?.toInt(),
-      totBeratTaksasi: (json['totBeratTaksasi'] as num?)?.toDouble(),
+      jumJjg: json['jumJjg']?.toString(),
+      brondolan: json['brondolan']?.toString(),
+      totBeratTaksasi: json['totBeratTaksasi']?.toString(),
       driverName: json['driverName'] as String?,
       millTujuanName: json['millTujuanName'] as String?,
       createdAt: json['createdAt'] == null

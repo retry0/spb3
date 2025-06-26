@@ -41,10 +41,49 @@ class SpbModel extends Equatable {
     this.isSynced = true,
   });
 
-  factory SpbModel.fromJson(Map<String, dynamic> json) =>
-      _$SpbModelFromJson(json);
+  factory SpbModel.fromJson(Map<String, dynamic> json) {
+    return SpbModel(
+      noSpb: json['noSpb'] as String,
+      tglAntarBuah: json['tglAntarBuah'] as String,
+      millTujuan: json['millTujuan'] as String,
+      status: json['status'] as String,
+      keterangan: json['keterangan'] as String?,
+      kodeVendor: json['kodeVendor'] as String?,
+      driver: json['driver'] as String?,
+      noPolisi: json['noPolisi'] as String?,
+      jumJjg: json['jumJjg']?.toString(),  // Convert to String
+      brondolan: json['brondolan']?.toString(),  // Convert to String
+      totBeratTaksasi: json['totBeratTaksasi']?.toString(),  // Convert to String
+      driverName: json['driverName'] as String?,
+      millTujuanName: json['millTujuanName'] as String?,
+      createdAt: json['createdAt'] == null
+          ? null
+          : DateTime.parse(json['createdAt'] as String),
+      updatedAt: json['updatedAt'] == null
+          ? null
+          : DateTime.parse(json['updatedAt'] as String),
+      isSynced: json['isSynced'] as bool? ?? true,
+    );
+  }
 
-  Map<String, dynamic> toJson() => _$SpbModelToJson(this);
+  Map<String, dynamic> toJson() => {
+      'noSpb': noSpb,
+      'tglAntarBuah': tglAntarBuah,
+      'millTujuan': millTujuan,
+      'status': status,
+      'keterangan': keterangan,
+      'kodeVendor': kodeVendor,
+      'driver': driver,
+      'noPolisi': noPolisi,
+      'jumJjg': jumJjg,
+      'brondolan': brondolan,
+      'totBeratTaksasi': totBeratTaksasi,
+      'driverName': driverName,
+      'millTujuanName': millTujuanName,
+      'createdAt': createdAt?.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+      'isSynced': isSynced,
+    };
 
   // For database operations
   factory SpbModel.fromDatabase(Map<String, dynamic> map) {
