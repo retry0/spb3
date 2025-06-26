@@ -4,157 +4,183 @@ import '../../../../core/utils/logger.dart';
 import '../models/espb_form_data.dart';
 
 abstract class EspbFormLocalDataSource {
-  /// Saves form data to local database
-  ///
-  /// Throws [CacheException] if saving fails
-  Future<EspbFormData> saveFormData(EspbFormData formData);
-
-  /// Gets form data by ID
-  ///
-  /// Throws [CacheException] if retrieval fails
-  /// Returns null if no data found
-  Future<EspbFormData?> getFormData(String formId);
-
-  /// Gets all pending form data
-  ///
-  /// Throws [CacheException] if retrieval fails
-  Future<List<EspbFormData>> getAllPendingForms();
-
-  /// Gets all form data for a specific SPB
-  ///
-  /// Throws [CacheException] if retrieval fails
-  Future<List<EspbFormData>> getFormDataForSpb(String noSpb);
-
-  /// Updates form data sync status
-  ///
-  /// Throws [CacheException] if update fails
-  Future<EspbFormData> updateFormSyncStatus(
-    String formId, {
-    required bool isSynced,
-    DateTime? syncedAt,
-    String? lastError,
-    int? retryCount,
-  });
+  /// Save ESPB form data to local database
+  Future<void> saveEspbFormData(EspbFormData formData);
+  
+  /// Get all unsynced ESPB form data
+  Future<List<EspbFormData>> getUnsyncedEspbFormData();
+  
+  /// Get ESPB form data by SPB number
+  Future<EspbFormData?> getEspbFormDataBySpbNumber(String spbNumber);
+  
+  /// Mark ESPB form data as synced
+  Future<void> markAsSynced(String spbNumber);
+  
+  /// Update sync status and error information
+  Future<void> updateSyncStatus(String spbNumber, bool isSynced, String? errorMessage);
+  
+  /// Increment retry count for a specific SPB
+  Future<void> incrementRetryCount(String spbNumber);
+  
+  /// Get all ESPB form data
+  Future<List<EspbFormData>> getAllEspbFormData();
 }
 
 class EspbFormLocalDataSourceImpl implements EspbFormLocalDataSource {
   final DatabaseHelper _dbHelper;
-
+  
   EspbFormLocalDataSourceImpl({required DatabaseHelper dbHelper}) : _dbHelper = dbHelper;
-
+  
   @override
-  Future<EspbFormData> saveFormData(EspbFormData formData) async {
+  Future<void> saveEspbFormData(EspbFormData formData) async {
     try {
-      await _dbHelper.insert('espb_form_data', formData.toDatabase());
-      return formData;
-    } catch (e) {
-      AppLogger.error('Failed to save form data to local storage: $e');
-      throw CacheException('Failed to save form data: $e');
-    }
-  }
-
-  @override
-  Future<EspbFormData?> getFormData(String formId) async {
-    try {
-      final results = await _dbHelper.query(
-        'espb_form_data',
-        where: 'id = ?',
-        whereArgs: [formId],
-        limit: 1,
-      );
-
-      if (results.isEmpty) {
-        return null;
+      // Check if record already exists
+      final existingData = await getEspbFormDataBySpbNumber(formData.noSpb);
+      
+      if (existingData != null) {
+        // Update existing record
+        await _dbHelper.update(
+          'espb_form_data',
+          formData.toDatabase(),
+          where: 'no_spb = ?',
+          whereArgs: [formData.noSpb],
+        );
+        AppLogger.info('Updated ESPB form data for SPB: ${formData.noSpb}');
+      } else {
+        // Insert new record
+        await _dbHelper.insert('espb_form_data', formData.toDatabase());
+        AppLogger.info('Saved new ESPB form data for SPB: ${formData.noSpb}');
       }
-
-      return EspbFormData.fromDatabase(results.first);
     } catch (e) {
-      AppLogger.error('Failed to get form data from local storage: $e');
-      throw CacheException('Failed to get form data: $e');
+      AppLogger.error('Failed to save ESPB form data: $e');
+      throw CacheException('Failed to save ESPB form data: $e');
     }
   }
-
+  
   @override
-  Future<List<EspbFormData>> getAllPendingForms() async {
+  Future<List<EspbFormData>> getUnsyncedEspbFormData() async {
     try {
       final results = await _dbHelper.query(
         'espb_form_data',
         where: 'is_synced = ?',
         whereArgs: [0],
-        orderBy: 'created_at ASC',
+        orderBy: 'timestamp ASC', // Oldest first for FIFO processing
       );
-
+      
       return results.map((data) => EspbFormData.fromDatabase(data)).toList();
     } catch (e) {
-      AppLogger.error('Failed to get pending forms from local storage: $e');
-      throw CacheException('Failed to get pending forms: $e');
+      AppLogger.error('Failed to get unsynced ESPB form data: $e');
+      throw CacheException('Failed to get unsynced ESPB form data: $e');
     }
   }
-
+  
   @override
-  Future<List<EspbFormData>> getFormDataForSpb(String noSpb) async {
+  Future<EspbFormData?> getEspbFormDataBySpbNumber(String spbNumber) async {
     try {
       final results = await _dbHelper.query(
         'espb_form_data',
         where: 'no_spb = ?',
-        whereArgs: [noSpb],
-        orderBy: 'created_at DESC',
+        whereArgs: [spbNumber],
+        limit: 1,
       );
-
-      return results.map((data) => EspbFormData.fromDatabase(data)).toList();
+      
+      if (results.isEmpty) {
+        return null;
+      }
+      
+      return EspbFormData.fromDatabase(results.first);
     } catch (e) {
-      AppLogger.error('Failed to get form data for SPB from local storage: $e');
-      throw CacheException('Failed to get form data for SPB: $e');
+      AppLogger.error('Failed to get ESPB form data by SPB number: $e');
+      throw CacheException('Failed to get ESPB form data by SPB number: $e');
     }
   }
-
+  
   @override
-  Future<EspbFormData> updateFormSyncStatus(
-    String formId, {
-    required bool isSynced,
-    DateTime? syncedAt,
-    String? lastError,
-    int? retryCount,
-  }) async {
+  Future<void> markAsSynced(String spbNumber) async {
     try {
-      final now = DateTime.now();
-      final updates = {
-        'is_synced': isSynced ? 1 : 0,
-        'synced_at': syncedAt?.millisecondsSinceEpoch ~/ 1000 ?? (isSynced ? now.millisecondsSinceEpoch ~/ 1000 : null),
-        'updated_at': now.millisecondsSinceEpoch ~/ 1000,
-      };
-
-      if (lastError != null) {
-        updates['last_error'] = lastError;
-      }
-
-      if (retryCount != null) {
-        updates['retry_count'] = retryCount;
-      } else if (!isSynced && lastError != null) {
-        // Increment retry count if sync failed
-        final currentForm = await getFormData(formId);
-        if (currentForm != null) {
-          updates['retry_count'] = currentForm.retryCount + 1;
-        }
-      }
-
       await _dbHelper.update(
         'espb_form_data',
-        updates,
-        where: 'id = ?',
-        whereArgs: [formId],
+        {
+          'is_synced': 1,
+          'last_error': null,
+          'updated_at': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        },
+        where: 'no_spb = ?',
+        whereArgs: [spbNumber],
       );
-
-      // Get updated form data
-      final updatedForm = await getFormData(formId);
-      if (updatedForm == null) {
-        throw CacheException('Form data not found after update');
-      }
-
-      return updatedForm;
+      
+      AppLogger.info('Marked ESPB form data as synced for SPB: $spbNumber');
     } catch (e) {
-      AppLogger.error('Failed to update form sync status: $e');
-      throw CacheException('Failed to update form sync status: $e');
+      AppLogger.error('Failed to mark ESPB form data as synced: $e');
+      throw CacheException('Failed to mark ESPB form data as synced: $e');
+    }
+  }
+  
+  @override
+  Future<void> updateSyncStatus(String spbNumber, bool isSynced, String? errorMessage) async {
+    try {
+      await _dbHelper.update(
+        'espb_form_data',
+        {
+          'is_synced': isSynced ? 1 : 0,
+          'last_error': errorMessage,
+          'updated_at': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        },
+        where: 'no_spb = ?',
+        whereArgs: [spbNumber],
+      );
+      
+      AppLogger.info('Updated sync status for SPB: $spbNumber, isSynced: $isSynced');
+      if (errorMessage != null) {
+        AppLogger.warning('Sync error for SPB $spbNumber: $errorMessage');
+      }
+    } catch (e) {
+      AppLogger.error('Failed to update sync status: $e');
+      throw CacheException('Failed to update sync status: $e');
+    }
+  }
+  
+  @override
+  Future<void> incrementRetryCount(String spbNumber) async {
+    try {
+      // Get current record to get the current retry count
+      final currentData = await getEspbFormDataBySpbNumber(spbNumber);
+      if (currentData == null) {
+        throw CacheException('ESPB form data not found for SPB: $spbNumber');
+      }
+      
+      // Increment retry count
+      final newRetryCount = currentData.retryCount + 1;
+      
+      await _dbHelper.update(
+        'espb_form_data',
+        {
+          'retry_count': newRetryCount,
+          'updated_at': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        },
+        where: 'no_spb = ?',
+        whereArgs: [spbNumber],
+      );
+      
+      AppLogger.info('Incremented retry count for SPB: $spbNumber, new count: $newRetryCount');
+    } catch (e) {
+      AppLogger.error('Failed to increment retry count: $e');
+      throw CacheException('Failed to increment retry count: $e');
+    }
+  }
+  
+  @override
+  Future<List<EspbFormData>> getAllEspbFormData() async {
+    try {
+      final results = await _dbHelper.query(
+        'espb_form_data',
+        orderBy: 'timestamp DESC', // Newest first
+      );
+      
+      return results.map((data) => EspbFormData.fromDatabase(data)).toList();
+    } catch (e) {
+      AppLogger.error('Failed to get all ESPB form data: $e');
+      throw CacheException('Failed to get all ESPB form data: $e');
     }
   }
 }

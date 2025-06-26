@@ -1,6 +1,4 @@
-import 'package:equatable/equatable.dart';
-
-import '../../data/models/espb_form_data.dart';
+part of 'espb_form_bloc.dart';
 
 abstract class EspbFormEvent extends Equatable {
   const EspbFormEvent();
@@ -9,91 +7,33 @@ abstract class EspbFormEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-class SaveAcceptanceFormRequested extends EspbFormEvent {
-  final String noSpb;
-  final String latitude;
-  final String longitude;
-  final String createdBy;
-
-  const SaveAcceptanceFormRequested({
-    required this.noSpb,
-    required this.latitude,
-    required this.longitude,
-    required this.createdBy,
-  });
-
+class EspbFormSaveRequested extends EspbFormEvent {
+  final EspbFormData formData;
+  
+  const EspbFormSaveRequested({required this.formData});
+  
   @override
-  List<Object> get props => [noSpb, latitude, longitude, createdBy];
+  List<Object> get props => [formData];
 }
 
-class SaveKendalaFormRequested extends EspbFormEvent {
-  final String noSpb;
-  final String alasan;
-  final bool isDriverOrVehicleChanged;
-  final String latitude;
-  final String longitude;
-  final String createdBy;
-
-  const SaveKendalaFormRequested({
-    required this.noSpb,
-    required this.alasan,
-    required this.isDriverOrVehicleChanged,
-    required this.latitude,
-    required this.longitude,
-    required this.createdBy,
-  });
-
+class EspbFormSyncRequested extends EspbFormEvent {
+  final String spbNumber;
+  
+  const EspbFormSyncRequested({required this.spbNumber});
+  
   @override
-  List<Object> get props => [
-    noSpb,
-    alasan,
-    isDriverOrVehicleChanged,
-    latitude,
-    longitude,
-    createdBy,
-  ];
+  List<Object> get props => [spbNumber];
 }
 
-class SyncFormRequested extends EspbFormEvent {
-  final String formId;
-
-  const SyncFormRequested({required this.formId});
-
-  @override
-  List<Object> get props => [formId];
+class EspbFormSyncAllRequested extends EspbFormEvent {
+  const EspbFormSyncAllRequested();
 }
 
-class SyncAllFormsRequested extends EspbFormEvent {
-  const SyncAllFormsRequested();
-}
-
-class GetFormRequested extends EspbFormEvent {
-  final String formId;
-
-  const GetFormRequested({required this.formId});
-
-  @override
-  List<Object> get props => [formId];
-}
-
-class GetPendingFormsRequested extends EspbFormEvent {
-  const GetPendingFormsRequested();
-}
-
-class GetFormsForSpbRequested extends EspbFormEvent {
-  final String noSpb;
-
-  const GetFormsForSpbRequested({required this.noSpb});
-
-  @override
-  List<Object> get props => [noSpb];
-}
-
-class ConnectivityChanged extends EspbFormEvent {
+class EspbFormConnectivityChanged extends EspbFormEvent {
   final bool isConnected;
-
-  const ConnectivityChanged({required this.isConnected});
-
+  
+  const EspbFormConnectivityChanged({required this.isConnected});
+  
   @override
   List<Object> get props => [isConnected];
 }

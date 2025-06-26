@@ -1,7 +1,5 @@
-import 'dart:async';
 import 'package:dartz/dartz.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../../../core/error/failures.dart';
 import '../../../../core/error/exceptions.dart';
@@ -15,387 +13,277 @@ class EspbFormRepositoryImpl implements EspbFormRepository {
   final EspbFormLocalDataSource _localDataSource;
   final EspbFormRemoteDataSource _remoteDataSource;
   final Connectivity _connectivity;
-  final Uuid _uuid;
-
-  // For background sync
-  Timer? _syncTimer;
-  bool _isSyncing = false;
-  final Duration _syncInterval = const Duration(minutes: 5);
   
-  // For retry mechanism
-  final int _maxRetries = 5;
-  final Duration _initialBackoff = const Duration(seconds: 5);
-
+  // Maximum number of retry attempts
+  static const int _maxRetryAttempts = 5;
+  
   EspbFormRepositoryImpl({
     required EspbFormLocalDataSource localDataSource,
     required EspbFormRemoteDataSource remoteDataSource,
     required Connectivity connectivity,
-    required Uuid uuid,
   }) : _localDataSource = localDataSource,
        _remoteDataSource = remoteDataSource,
-       _connectivity = connectivity,
-       _uuid = uuid {
-    // Start background sync
-    _startBackgroundSync();
-    
-    // Listen for connectivity changes
-    _connectivity.onConnectivityChanged.listen(_handleConnectivityChange);
-  }
-
+       _connectivity = connectivity;
+  
   @override
-  Future<Either<Failure, EspbFormData>> saveFormData(EspbFormData formData) async {
+  Future<Either<Failure, bool>> saveEspbFormData(EspbFormData formData) async {
     try {
-      // Validate form data
-      final validationError = EspbFormData.validate(formData);
-      if (validationError != null) {
-        return Left(ValidationFailure(validationError));
+      // Validate required fields
+      if (!_validateFormData(formData)) {
+        return Left(ValidationFailure('Missing required fields in ESPB form data'));
       }
-      
-      // Generate ID if not provided
-      final dataToSave = formData.id.isEmpty 
-          ? formData.copyWith(id: _uuid.v4(), createdAt: DateTime.now())
-          : formData;
       
       // Save to local database
-      final savedData = await _localDataSource.saveFormData(dataToSave);
+      await _localDataSource.saveEspbFormData(formData);
       
-      // Try to sync immediately if online
-      final isConnected = await _checkConnectivity();
-      if (isConnected) {
-        // Don't wait for sync to complete
-        _syncFormData(savedData.id).then((_) {
-          AppLogger.info('Background sync initiated for form: ${savedData.id}');
-        }).catchError((e) {
-          AppLogger.error('Background sync failed for form: ${savedData.id}', e);
-        });
+      // Check if we have connectivity
+      final connectivityResult = await _connectivity.checkConnectivity();
+      final hasConnectivity = connectivityResult.isNotEmpty && 
+                             !connectivityResult.contains(ConnectivityResult.none);
+      
+      // If online, attempt to sync immediately
+      if (hasConnectivity) {
+        try {
+          final syncResult = await syncEspbFormData(formData.noSpb);
+          return syncResult.fold(
+            (failure) {
+              // Still return success since we saved locally
+              AppLogger.warning('Failed to sync ESPB form data: ${failure.message}');
+              return const Right(true);
+            },
+            (success) => const Right(true),
+          );
+        } catch (e) {
+          // Still return success since we saved locally
+          AppLogger.warning('Error during immediate sync: $e');
+          return const Right(true);
+        }
       }
       
-      return Right(savedData);
+      return const Right(true);
+    } on ValidationException catch (e) {
+      return Left(ValidationFailure(e.message));
     } on CacheException catch (e) {
       return Left(CacheFailure(e.message));
     } catch (e) {
-      return Left(ServerFailure('Failed to save form data: $e'));
+      return Left(ServerFailure('Failed to save ESPB form data: $e'));
     }
   }
-
+  
   @override
-  Future<Either<Failure, EspbFormData>> syncFormData(String formId) async {
+  Future<Either<Failure, List<EspbFormData>>> getAllEspbFormData() async {
+    try {
+      final formDataList = await _localDataSource.getAllEspbFormData();
+      return Right(formDataList);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(ServerFailure('Failed to get all ESPB form data: $e'));
+    }
+  }
+  
+  @override
+  Future<Either<Failure, List<EspbFormData>>> getUnsyncedEspbFormData() async {
+    try {
+      final unsyncedData = await _localDataSource.getUnsyncedEspbFormData();
+      return Right(unsyncedData);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(ServerFailure('Failed to get unsynced ESPB form data: $e'));
+    }
+  }
+  
+  @override
+  Future<Either<Failure, int>> syncUnsyncedEspbFormData() async {
     try {
       // Check connectivity
-      final isConnected = await _checkConnectivity();
-      if (!isConnected) {
+      final connectivityResult = await _connectivity.checkConnectivity();
+      final hasConnectivity = connectivityResult.isNotEmpty && 
+                             !connectivityResult.contains(ConnectivityResult.none);
+      
+      if (!hasConnectivity) {
         return Left(NetworkFailure('No internet connection available'));
       }
       
-      // Get form data from local database
-      final formData = await _localDataSource.getFormData(formId);
-      if (formData == null) {
-        return Left(CacheFailure('Form data not found'));
+      // Get all unsynced data
+      final unsyncedData = await _localDataSource.getUnsyncedEspbFormData();
+      
+      if (unsyncedData.isEmpty) {
+        return const Right(0); // No data to sync
       }
       
-      // If already synced, return success
-      if (formData.isSynced) {
-        return Right(formData);
-      }
+      int successCount = 0;
       
-      // Check if already processed on server to avoid duplicates
-      final isProcessed = await _remoteDataSource.checkFormProcessed(
-        formData.noSpb, 
-        formData.status,
-      );
-      
-      if (isProcessed) {
-        // Already processed on server, update local status
-        final updatedForm = await _localDataSource.updateFormSyncStatus(
-          formId,
-          isSynced: true,
-          syncedAt: DateTime.now(),
-        );
-        
-        AppLogger.info('Form already processed on server: ${formData.id}');
-        return Right(updatedForm);
-      }
-      
-      // Submit to remote API
-      await _remoteDataSource.submitFormData(formData);
-      
-      // Update sync status in local database
-      final updatedForm = await _localDataSource.updateFormSyncStatus(
-        formId,
-        isSynced: true,
-        syncedAt: DateTime.now(),
-      );
-      
-      AppLogger.info('Form synced successfully: ${formData.id}');
-      return Right(updatedForm);
-    } on NetworkException catch (e) {
-      // Update retry count and error message
-      try {
-        final formData = await _localDataSource.getFormData(formId);
-        if (formData != null) {
-          await _localDataSource.updateFormSyncStatus(
-            formId,
-            isSynced: false,
-            lastError: e.message,
-            retryCount: formData.retryCount + 1,
-          );
-        }
-      } catch (_) {
-        // Ignore errors in error handling
-      }
-      
-      return Left(NetworkFailure(e.message));
-    } on ServerException catch (e) {
-      // Update retry count and error message
-      try {
-        final formData = await _localDataSource.getFormData(formId);
-        if (formData != null) {
-          await _localDataSource.updateFormSyncStatus(
-            formId,
-            isSynced: false,
-            lastError: e.message,
-            retryCount: formData.retryCount + 1,
-          );
-        }
-      } catch (_) {
-        // Ignore errors in error handling
-      }
-      
-      return Left(ServerFailure(e.message));
-    } on TimeoutException catch (e) {
-      // Update retry count and error message
-      try {
-        final formData = await _localDataSource.getFormData(formId);
-        if (formData != null) {
-          await _localDataSource.updateFormSyncStatus(
-            formId,
-            isSynced: false,
-            lastError: e.message,
-            retryCount: formData.retryCount + 1,
-          );
-        }
-      } catch (_) {
-        // Ignore errors in error handling
-      }
-      
-      return Left(TimeoutFailure(e.message));
-    } catch (e) {
-      // Update retry count and error message
-      try {
-        final formData = await _localDataSource.getFormData(formId);
-        if (formData != null) {
-          await _localDataSource.updateFormSyncStatus(
-            formId,
-            isSynced: false,
-            lastError: e.toString(),
-            retryCount: formData.retryCount + 1,
-          );
-        }
-      } catch (_) {
-        // Ignore errors in error handling
-      }
-      
-      return Left(ServerFailure('Failed to sync form data: $e'));
-    }
-  }
-
-  @override
-  Future<Either<Failure, int>> syncAllPendingForms() async {
-    try {
-      // Check if already syncing
-      if (_isSyncing) {
-        return const Right(0);
-      }
-      
-      _isSyncing = true;
-      
-      try {
-        // Check connectivity
-        final isConnected = await _checkConnectivity();
-        if (!isConnected) {
-          return Left(NetworkFailure('No internet connection available'));
-        }
-        
-        // Get all pending forms
-        final pendingForms = await _localDataSource.getAllPendingForms();
-        
-        if (pendingForms.isEmpty) {
-          return const Right(0);
-        }
-        
-        int successCount = 0;
-        
-        // Process each form
-        for (final form in pendingForms) {
-          // Skip forms that have exceeded max retries
-          if (form.retryCount >= _maxRetries) {
-            AppLogger.warning('Form exceeded max retries: ${form.id}');
+      // Process each unsynced item
+      for (final formData in unsyncedData) {
+        try {
+          // Skip items that have exceeded max retry attempts
+          if (formData.retryCount >= _maxRetryAttempts) {
+            AppLogger.warning('Skipping sync for SPB ${formData.noSpb}: max retry attempts exceeded');
             continue;
           }
           
-          try {
-            // Check if already processed on server
-            final isProcessed = await _remoteDataSource.checkFormProcessed(
-              form.noSpb, 
-              form.status,
-            );
-            
-            if (isProcessed) {
-              // Already processed on server, update local status
-              await _localDataSource.updateFormSyncStatus(
-                form.id,
-                isSynced: true,
-                syncedAt: DateTime.now(),
-              );
-              
-              successCount++;
-              AppLogger.info('Form already processed on server: ${form.id}');
-              continue;
-            }
-            
-            // Submit to remote API
-            await _remoteDataSource.submitFormData(form);
-            
-            // Update sync status
-            await _localDataSource.updateFormSyncStatus(
-              form.id,
-              isSynced: true,
-              syncedAt: DateTime.now(),
-            );
-            
+          // Check if this SPB has already been processed on the server
+          final isAlreadyProcessed = await _remoteDataSource.checkSpbProcessStatus(formData.noSpb);
+          
+          if (isAlreadyProcessed) {
+            // If already processed, mark as synced locally
+            await _localDataSource.markAsSynced(formData.noSpb);
             successCount++;
-            AppLogger.info('Form synced successfully: ${form.id}');
-          } catch (e) {
-            // Update retry count and error message
-            await _localDataSource.updateFormSyncStatus(
-              form.id,
-              isSynced: false,
-              lastError: e.toString(),
-              retryCount: form.retryCount + 1,
-            );
-            
-            AppLogger.error('Failed to sync form: ${form.id}', e);
+            AppLogger.info('SPB ${formData.noSpb} already processed on server, marked as synced locally');
+            continue;
           }
           
-          // Add a small delay between requests to avoid overwhelming the server
-          await Future.delayed(const Duration(milliseconds: 500));
+          // Submit to API
+          final success = await _remoteDataSource.submitEspbFormData(formData);
+          
+          if (success) {
+            // Mark as synced
+            await _localDataSource.markAsSynced(formData.noSpb);
+            successCount++;
+            AppLogger.info('Successfully synced ESPB form data for SPB: ${formData.noSpb}');
+          } else {
+            // Update retry count
+            await _localDataSource.incrementRetryCount(formData.noSpb);
+            await _localDataSource.updateSyncStatus(
+              formData.noSpb, 
+              false, 
+              'Failed to sync with server'
+            );
+            AppLogger.warning('Failed to sync ESPB form data for SPB: ${formData.noSpb}');
+          }
+        } on NetworkException catch (e) {
+          // Network error - update retry count and error message
+          await _localDataSource.incrementRetryCount(formData.noSpb);
+          await _localDataSource.updateSyncStatus(formData.noSpb, false, e.message);
+          AppLogger.warning('Network error syncing SPB ${formData.noSpb}: ${e.message}');
+        } on ServerException catch (e) {
+          // Server error - update retry count and error message
+          await _localDataSource.incrementRetryCount(formData.noSpb);
+          await _localDataSource.updateSyncStatus(formData.noSpb, false, e.message);
+          AppLogger.warning('Server error syncing SPB ${formData.noSpb}: ${e.message}');
+        } catch (e) {
+          // Unexpected error - update retry count and error message
+          await _localDataSource.incrementRetryCount(formData.noSpb);
+          await _localDataSource.updateSyncStatus(formData.noSpb, false, e.toString());
+          AppLogger.error('Unexpected error syncing SPB ${formData.noSpb}: $e');
         }
-        
-        return Right(successCount);
-      } finally {
-        _isSyncing = false;
       }
+      
+      return Right(successCount);
     } catch (e) {
-      _isSyncing = false;
-      return Left(ServerFailure('Failed to sync pending forms: $e'));
+      AppLogger.error('Failed to sync unsynced ESPB form data: $e');
+      return Left(ServerFailure('Failed to sync unsynced ESPB form data: $e'));
     }
   }
-
+  
   @override
-  Future<Either<Failure, EspbFormData>> getFormData(String formId) async {
+  Future<Either<Failure, bool>> syncEspbFormData(String spbNumber) async {
     try {
-      final formData = await _localDataSource.getFormData(formId);
+      // Check connectivity
+      final connectivityResult = await _connectivity.checkConnectivity();
+      final hasConnectivity = connectivityResult.isNotEmpty && 
+                             !connectivityResult.contains(ConnectivityResult.none);
+      
+      if (!hasConnectivity) {
+        return Left(NetworkFailure('No internet connection available'));
+      }
+      
+      // Get the form data
+      final formData = await _localDataSource.getEspbFormDataBySpbNumber(spbNumber);
+      
       if (formData == null) {
-        return Left(CacheFailure('Form data not found'));
+        return Left(CacheFailure('ESPB form data not found for SPB: $spbNumber'));
       }
       
-      return Right(formData);
-    } on CacheException catch (e) {
-      return Left(CacheFailure(e.message));
-    } catch (e) {
-      return Left(ServerFailure('Failed to get form data: $e'));
-    }
-  }
-
-  @override
-  Future<Either<Failure, List<EspbFormData>>> getAllPendingForms() async {
-    try {
-      final pendingForms = await _localDataSource.getAllPendingForms();
-      return Right(pendingForms);
-    } on CacheException catch (e) {
-      return Left(CacheFailure(e.message));
-    } catch (e) {
-      return Left(ServerFailure('Failed to get pending forms: $e'));
-    }
-  }
-
-  @override
-  Future<Either<Failure, List<EspbFormData>>> getFormDataForSpb(String noSpb) async {
-    try {
-      final forms = await _localDataSource.getFormDataForSpb(noSpb);
-      return Right(forms);
-    } on CacheException catch (e) {
-      return Left(CacheFailure(e.message));
-    } catch (e) {
-      return Left(ServerFailure('Failed to get form data for SPB: $e'));
-    }
-  }
-
-  // Private helper methods
-  
-  Future<bool> _checkConnectivity() async {
-    final connectivityResult = await _connectivity.checkConnectivity();
-    return connectivityResult.isNotEmpty && 
-           !connectivityResult.contains(ConnectivityResult.none);
-  }
-  
-  void _handleConnectivityChange(List<ConnectivityResult> result) {
-    final isConnected = result.isNotEmpty && 
-                        !result.contains(ConnectivityResult.none);
-    
-    if (isConnected && !_isSyncing) {
-      // Trigger sync when connectivity is restored
-      syncAllPendingForms().then((result) {
-        result.fold(
-          (failure) => AppLogger.error('Auto-sync failed: ${failure.message}'),
-          (count) => AppLogger.info('Auto-sync completed: $count items synced'),
+      // Skip if already synced
+      if (formData.isSynced) {
+        return const Right(true);
+      }
+      
+      // Check if this SPB has already been processed on the server
+      final isAlreadyProcessed = await _remoteDataSource.checkSpbProcessStatus(spbNumber);
+      
+      if (isAlreadyProcessed) {
+        // If already processed, mark as synced locally
+        await _localDataSource.markAsSynced(spbNumber);
+        AppLogger.info('SPB $spbNumber already processed on server, marked as synced locally');
+        return const Right(true);
+      }
+      
+      // Submit to API
+      final success = await _remoteDataSource.submitEspbFormData(formData);
+      
+      if (success) {
+        // Mark as synced
+        await _localDataSource.markAsSynced(spbNumber);
+        AppLogger.info('Successfully synced ESPB form data for SPB: $spbNumber');
+        return const Right(true);
+      } else {
+        // Update retry count and error message
+        await _localDataSource.incrementRetryCount(spbNumber);
+        await _localDataSource.updateSyncStatus(
+          spbNumber, 
+          false, 
+          'Failed to sync with server'
         );
-      });
-    }
-  }
-  
-  void _startBackgroundSync() {
-    _syncTimer?.cancel();
-    _syncTimer = Timer.periodic(_syncInterval, (_) {
-      if (!_isSyncing) {
-        syncAllPendingForms().then((result) {
-          result.fold(
-            (failure) => AppLogger.error('Background sync failed: ${failure.message}'),
-            (count) => count > 0 
-                ? AppLogger.info('Background sync completed: $count items synced')
-                : null, // Don't log if nothing was synced
-          );
-        });
+        AppLogger.warning('Failed to sync ESPB form data for SPB: $spbNumber');
+        return Left(ServerFailure('Failed to sync ESPB form data with server'));
       }
-    });
-  }
-  
-  // Retry with exponential backoff
-  Future<Either<Failure, EspbFormData>> _retryWithBackoff(
-    String formId,
-    Future<Either<Failure, EspbFormData>> Function() operation,
-    int attempt,
-  ) async {
-    if (attempt >= _maxRetries) {
-      return Left(ServerFailure('Max retry attempts reached'));
-    }
-    
-    // Calculate backoff duration
-    final backoffDuration = _initialBackoff * (1 << attempt);
-    
-    try {
-      return await operation();
+    } on NetworkException catch (e) {
+      return Left(NetworkFailure(e.message));
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
     } catch (e) {
-      // Wait before retrying
-      await Future.delayed(backoffDuration);
-      
-      // Retry with incremented attempt
-      return _retryWithBackoff(formId, operation, attempt + 1);
+      return Left(ServerFailure('Failed to sync ESPB form data: $e'));
     }
   }
   
-  // Dispose resources
-  void dispose() {
-    _syncTimer?.cancel();
+  @override
+  Future<bool> hasUnsyncedData() async {
+    try {
+      final unsyncedData = await _localDataSource.getUnsyncedEspbFormData();
+      return unsyncedData.isNotEmpty;
+    } catch (e) {
+      AppLogger.error('Error checking for unsynced data: $e');
+      return false;
+    }
+  }
+  
+  @override
+  Future<Either<Failure, bool>> getSyncStatus(String spbNumber) async {
+    try {
+      final formData = await _localDataSource.getEspbFormDataBySpbNumber(spbNumber);
+      
+      if (formData == null) {
+        return Left(CacheFailure('ESPB form data not found for SPB: $spbNumber'));
+      }
+      
+      return Right(formData.isSynced);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(e.message));
+    } catch (e) {
+      return Left(ServerFailure('Failed to get sync status: $e'));
+    }
+  }
+  
+  /// Validate that all required fields are present
+  bool _validateFormData(EspbFormData formData) {
+    // Basic validation for required fields
+    if (formData.noSpb.isEmpty) return false;
+    if (formData.status.isEmpty) return false;
+    if (formData.createdBy.isEmpty) return false;
+    
+    // Status-specific validation
+    if (formData.status == "2") { // Kendala
+      // For kendala, we need reason and handling flag
+      if (formData.alasan == null || formData.alasan!.isEmpty) return false;
+      if (formData.isAnyHandlingEx == null) return false;
+    }
+    
+    return true;
   }
 }

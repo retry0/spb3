@@ -1,130 +1,83 @@
-import 'package:equatable/equatable.dart';
-
-import '../../data/models/espb_form_data.dart';
+part of 'espb_form_bloc.dart';
 
 abstract class EspbFormState extends Equatable {
   const EspbFormState();
-
+  
   @override
   List<Object?> get props => [];
 }
 
-class EspbFormInitial extends EspbFormState {
-  const EspbFormInitial();
-}
+class EspbFormInitial extends EspbFormState {}
 
-class EspbFormLoading extends EspbFormState {
-  const EspbFormLoading();
-}
+class EspbFormSaving extends EspbFormState {}
 
-class EspbFormSaving extends EspbFormState {
-  const EspbFormSaving();
-}
-
-class EspbFormSaved extends EspbFormState {
-  final EspbFormData formData;
-
-  const EspbFormSaved({required this.formData});
-
+class EspbFormSaveSuccess extends EspbFormState {
+  final bool isSynced;
+  
+  const EspbFormSaveSuccess({required this.isSynced});
+  
   @override
-  List<Object> get props => [formData];
+  List<Object> get props => [isSynced];
 }
 
-class EspbFormSyncLoading extends EspbFormState {
-  final EspbFormData formData;
-
-  const EspbFormSyncLoading({required this.formData});
-
-  @override
-  List<Object> get props => [formData];
-}
-
-class EspbFormSynced extends EspbFormState {
-  final EspbFormData formData;
-
-  const EspbFormSynced({required this.formData});
-
-  @override
-  List<Object> get props => [formData];
-}
-
-class EspbFormSyncFailed extends EspbFormState {
-  final EspbFormData formData;
+class EspbFormSaveFailure extends EspbFormState {
   final String message;
-
-  const EspbFormSyncFailed({
-    required this.formData,
-    required this.message,
-  });
-
-  @override
-  List<Object> get props => [formData, message];
-}
-
-class EspbFormError extends EspbFormState {
-  final String message;
-
-  const EspbFormError({required this.message});
-
+  
+  const EspbFormSaveFailure({required this.message});
+  
   @override
   List<Object> get props => [message];
 }
 
-class EspbFormLoaded extends EspbFormState {
-  final EspbFormData formData;
-
-  const EspbFormLoaded({required this.formData});
-
+class EspbFormSyncing extends EspbFormState {
+  final String spbNumber;
+  
+  const EspbFormSyncing({required this.spbNumber});
+  
   @override
-  List<Object> get props => [formData];
+  List<Object> get props => [spbNumber];
 }
 
-class EspbFormListLoaded extends EspbFormState {
-  final List<EspbFormData> forms;
-  final bool isConnected;
-
-  const EspbFormListLoaded({
-    required this.forms,
-    required this.isConnected,
-  });
-
+class EspbFormSyncSuccess extends EspbFormState {
+  final String spbNumber;
+  
+  const EspbFormSyncSuccess({required this.spbNumber});
+  
   @override
-  List<Object> get props => [forms, isConnected];
+  List<Object> get props => [spbNumber];
 }
 
-class EspbFormSyncAllLoading extends EspbFormState {
-  final List<EspbFormData> pendingForms;
-
-  const EspbFormSyncAllLoading({required this.pendingForms});
-
-  @override
-  List<Object> get props => [pendingForms];
-}
-
-class EspbFormSyncAllComplete extends EspbFormState {
-  final int successCount;
-  final int totalCount;
-
-  const EspbFormSyncAllComplete({
-    required this.successCount,
-    required this.totalCount,
-  });
-
-  @override
-  List<Object> get props => [successCount, totalCount];
-}
-
-class EspbFormSyncAllFailed extends EspbFormState {
+class EspbFormSyncFailure extends EspbFormState {
   final String message;
-  final int successCount;
-  final int totalCount;
-
-  const EspbFormSyncAllFailed({
+  final String spbNumber;
+  
+  const EspbFormSyncFailure({
     required this.message,
-    required this.successCount,
-    required this.totalCount,
+    required this.spbNumber,
   });
-
+  
   @override
-  List<Object> get props => [message, successCount, totalCount];
+  List<Object> get props => [message, spbNumber];
+}
+
+class EspbFormSyncingAll extends EspbFormState {
+  const EspbFormSyncingAll();
+}
+
+class EspbFormSyncAllSuccess extends EspbFormState {
+  final int syncedCount;
+  
+  const EspbFormSyncAllSuccess({required this.syncedCount});
+  
+  @override
+  List<Object> get props => [syncedCount];
+}
+
+class EspbFormSyncAllFailure extends EspbFormState {
+  final String message;
+  
+  const EspbFormSyncAllFailure({required this.message});
+  
+  @override
+  List<Object> get props => [message];
 }

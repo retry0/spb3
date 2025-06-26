@@ -186,25 +186,24 @@ class DatabaseHelper {
           updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
         )
       ''');
-
+      
       // ESPB form data table for storing form submissions
       await db.execute('''
         CREATE TABLE espb_form_data (
-          id TEXT PRIMARY KEY,
-          no_spb TEXT NOT NULL,
-          form_type INTEGER NOT NULL,
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          no_spb TEXT UNIQUE NOT NULL,
           status TEXT NOT NULL,
-          alasan TEXT,
-          is_driver_vehicle_changed INTEGER,
+          created_by TEXT NOT NULL,
           latitude TEXT NOT NULL,
           longitude TEXT NOT NULL,
-          created_by TEXT NOT NULL,
-          created_at INTEGER NOT NULL,
-          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-          synced_at INTEGER,
+          alasan TEXT,
+          is_any_handling_ex INTEGER,
+          timestamp INTEGER NOT NULL,
           is_synced INTEGER NOT NULL DEFAULT 0,
           retry_count INTEGER NOT NULL DEFAULT 0,
-          last_error TEXT
+          last_error TEXT,
+          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
         )
       ''');
 
@@ -264,13 +263,10 @@ class DatabaseHelper {
         'CREATE INDEX idx_espb_form_data_no_spb ON espb_form_data (no_spb)',
       );
       await db.execute(
-        'CREATE INDEX idx_espb_form_data_status ON espb_form_data (status)',
-      );
-      await db.execute(
         'CREATE INDEX idx_espb_form_data_is_synced ON espb_form_data (is_synced)',
       );
       await db.execute(
-        'CREATE INDEX idx_espb_form_data_created_at ON espb_form_data (created_at)',
+        'CREATE INDEX idx_espb_form_data_timestamp ON espb_form_data (timestamp)',
       );
 
       AppLogger.info('Database tables created successfully');
@@ -590,21 +586,20 @@ class DatabaseHelper {
         // Create espb_form_data table
         await db.execute('''
           CREATE TABLE espb_form_data (
-            id TEXT PRIMARY KEY,
-            no_spb TEXT NOT NULL,
-            form_type INTEGER NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            no_spb TEXT UNIQUE NOT NULL,
             status TEXT NOT NULL,
-            alasan TEXT,
-            is_driver_vehicle_changed INTEGER,
+            created_by TEXT NOT NULL,
             latitude TEXT NOT NULL,
             longitude TEXT NOT NULL,
-            created_by TEXT NOT NULL,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-            synced_at INTEGER,
+            alasan TEXT,
+            is_any_handling_ex INTEGER,
+            timestamp INTEGER NOT NULL,
             is_synced INTEGER NOT NULL DEFAULT 0,
             retry_count INTEGER NOT NULL DEFAULT 0,
-            last_error TEXT
+            last_error TEXT,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
           )
         ''');
 
@@ -613,13 +608,10 @@ class DatabaseHelper {
           'CREATE INDEX idx_espb_form_data_no_spb ON espb_form_data (no_spb)',
         );
         await db.execute(
-          'CREATE INDEX idx_espb_form_data_status ON espb_form_data (status)',
-        );
-        await db.execute(
           'CREATE INDEX idx_espb_form_data_is_synced ON espb_form_data (is_synced)',
         );
         await db.execute(
-          'CREATE INDEX idx_espb_form_data_created_at ON espb_form_data (created_at)',
+          'CREATE INDEX idx_espb_form_data_timestamp ON espb_form_data (timestamp)',
         );
 
         AppLogger.info('ESPB form data table created successfully');

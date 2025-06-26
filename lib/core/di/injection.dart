@@ -192,7 +192,6 @@ Future<void> configureDependencies() async {
       localDataSource: getIt<EspbFormLocalDataSource>(),
       remoteDataSource: getIt<EspbFormRemoteDataSource>(),
       connectivity: getIt<Connectivity>(),
-      uuid: getIt<Uuid>(),
     ),
   );
 
@@ -215,13 +214,10 @@ Future<void> configureDependencies() async {
   
   // ESPB Form use cases
   getIt.registerLazySingleton(
-    () => SaveEspbFormUseCase(
-      repository: getIt<EspbFormRepository>(),
-      uuid: getIt<Uuid>(),
-    ),
+    () => SaveEspbFormUseCase(getIt<EspbFormRepository>()),
   );
   getIt.registerLazySingleton(
-    () => SyncEspbFormUseCase(repository: getIt<EspbFormRepository>()),
+    () => SyncEspbFormUseCase(getIt<EspbFormRepository>()),
   );
 
   // Session Manager

@@ -1,27 +1,33 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:equatable/equatable.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
-import '../../../../core/utils/logger.dart';
 import '../../data/models/espb_form_data.dart';
 import '../../domain/usecases/save_espb_form_usecase.dart';
 import '../../domain/usecases/sync_espb_form_usecase.dart';
-import 'espb_form_event.dart';
-import 'espb_form_state.dart';
+import '../../../../core/utils/logger.dart';
+
+part 'espb_form_event.dart';
+part 'espb_form_state.dart';
 
 class EspbFormBloc extends Bloc<EspbFormEvent, EspbFormState> {
   final SaveEspbFormUseCase _saveEspbFormUseCase;
   final SyncEspbFormUseCase _syncEspbFormUseCase;
   final Connectivity _connectivity;
-
-  // For connectivity monitoring
+  
+  // Connectivity subscription
   StreamSubscription? _connectivitySubscription;
-  bool _isConnected = true;
-
-  // For auto-sync
+  
+  // Background sync timer
   Timer? _syncTimer;
-  final Duration _syncInterval = const Duration(minutes: 5);
-
+  
+  // Retry mechanism
+  int _retryAttempt = 0;
+  static const int _maxRetryAttempts = 3;
+  static const Duration _initialBackoffDuration = Duration(seconds: 5);
+  Timer? _retryTimer;
+  
   EspbFormBloc({
     required SaveEspbFormUseCase saveEspbFormUseCase,
     required SyncEspbFormUseCase syncEspbFormUseCase,
@@ -29,314 +35,186 @@ class EspbFormBloc extends Bloc<EspbFormEvent, EspbFormState> {
   }) : _saveEspbFormUseCase = saveEspbFormUseCase,
        _syncEspbFormUseCase = syncEspbFormUseCase,
        _connectivity = connectivity,
-       super(const EspbFormInitial()) {
-    on<SaveAcceptanceFormRequested>(_onSaveAcceptanceFormRequested);
-    on<SaveKendalaFormRequested>(_onSaveKendalaFormRequested);
-    on<SyncFormRequested>(_onSyncFormRequested);
-    on<SyncAllFormsRequested>(_onSyncAllFormsRequested);
-    on<GetFormRequested>(_onGetFormRequested);
-    on<GetPendingFormsRequested>(_onGetPendingFormsRequested);
-    on<GetFormsForSpbRequested>(_onGetFormsForSpbRequested);
-    on<ConnectivityChanged>(_onConnectivityChanged);
-
-    // Initialize connectivity monitoring
-    _initConnectivity();
+       super(EspbFormInitial()) {
+    on<EspbFormSaveRequested>(_onEspbFormSaveRequested);
+    on<EspbFormSyncRequested>(_onEspbFormSyncRequested);
+    on<EspbFormSyncAllRequested>(_onEspbFormSyncAllRequested);
+    on<EspbFormConnectivityChanged>(_onEspbFormConnectivityChanged);
     
-    // Start periodic sync
-    _startPeriodicSync();
+    // Initialize connectivity monitoring
+    _initConnectivityMonitoring();
+    
+    // Start background sync timer
+    _startBackgroundSync();
   }
-
+  
   @override
   Future<void> close() {
     _connectivitySubscription?.cancel();
     _syncTimer?.cancel();
+    _retryTimer?.cancel();
     return super.close();
   }
-
-  Future<void> _initConnectivity() async {
-    try {
-      final connectivityResult = await _connectivity.checkConnectivity();
-      _updateConnectivityStatus(connectivityResult);
-      
-      _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
-        _updateConnectivityStatus,
-      );
-    } catch (e) {
-      AppLogger.error('Failed to initialize connectivity monitoring: $e');
-    }
-  }
-
-  void _updateConnectivityStatus(List<ConnectivityResult> result) {
-    final wasConnected = _isConnected;
-    _isConnected = result.isNotEmpty && !result.contains(ConnectivityResult.none);
-    
-    // If connectivity status changed, emit event
-    if (wasConnected != _isConnected) {
-      add(ConnectivityChanged(isConnected: _isConnected));
-      
-      // If we just got connected, trigger sync
-      if (_isConnected && !wasConnected) {
-        add(const SyncAllFormsRequested());
-      }
-    }
-  }
-
-  void _startPeriodicSync() {
-    _syncTimer?.cancel();
-    _syncTimer = Timer.periodic(_syncInterval, (_) {
-      // Only sync if connected
-      if (_isConnected) {
-        add(const SyncAllFormsRequested());
-      }
+  
+  void _initConnectivityMonitoring() {
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((result) {
+      final hasConnectivity = result.isNotEmpty && !result.contains(ConnectivityResult.none);
+      add(EspbFormConnectivityChanged(isConnected: hasConnectivity));
     });
   }
-
-  Future<void> _onSaveAcceptanceFormRequested(
-    SaveAcceptanceFormRequested event,
+  
+  void _startBackgroundSync() {
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      add(const EspbFormSyncAllRequested());
+    });
+  }
+  
+  Future<void> _onEspbFormSaveRequested(
+    EspbFormSaveRequested event,
     Emitter<EspbFormState> emit,
   ) async {
-    emit(const EspbFormSaving());
+    emit(EspbFormSaving());
     
-    final result = await _saveEspbFormUseCase(
-      noSpb: event.noSpb,
-      formType: EspbFormType.acceptance,
-      status: "1", // Status 1 for acceptance
-      latitude: event.latitude,
-      longitude: event.longitude,
-      createdBy: event.createdBy,
-    );
+    final result = await _saveEspbFormUseCase(event.formData);
     
-    await result.fold(
-      (failure) async {
-        emit(EspbFormError(message: failure.message));
+    result.fold(
+      (failure) {
+        emit(EspbFormSaveFailure(message: failure.message));
       },
-      (formData) async {
-        emit(EspbFormSaved(formData: formData));
+      (success) {
+        final isSynced = event.formData.isSynced;
+        emit(EspbFormSaveSuccess(isSynced: isSynced));
         
-        // If connected, try to sync immediately
-        if (_isConnected) {
-          add(SyncFormRequested(formId: formData.id));
+        // If not synced, check connectivity and try to sync
+        if (!isSynced) {
+          _checkConnectivityAndSync();
         }
       },
     );
   }
-
-  Future<void> _onSaveKendalaFormRequested(
-    SaveKendalaFormRequested event,
+  
+  Future<void> _onEspbFormSyncRequested(
+    EspbFormSyncRequested event,
     Emitter<EspbFormState> emit,
   ) async {
-    emit(const EspbFormSaving());
+    emit(EspbFormSyncing(spbNumber: event.spbNumber));
     
-    final result = await _saveEspbFormUseCase(
-      noSpb: event.noSpb,
-      formType: EspbFormType.kendala,
-      status: "2", // Status 2 for kendala
-      alasan: event.alasan,
-      isDriverOrVehicleChanged: event.isDriverOrVehicleChanged,
-      latitude: event.latitude,
-      longitude: event.longitude,
-      createdBy: event.createdBy,
-    );
+    final result = await _syncEspbFormUseCase.syncSpecific(event.spbNumber);
     
-    await result.fold(
-      (failure) async {
-        emit(EspbFormError(message: failure.message));
-      },
-      (formData) async {
-        emit(EspbFormSaved(formData: formData));
+    result.fold(
+      (failure) {
+        emit(EspbFormSyncFailure(
+          message: failure.message,
+          spbNumber: event.spbNumber,
+        ));
         
-        // If connected, try to sync immediately
-        if (_isConnected) {
-          add(SyncFormRequested(formId: formData.id));
+        // Schedule retry if it's a network failure
+        if (failure is NetworkFailure) {
+          _scheduleRetry(event);
         }
       },
-    );
-  }
-
-  Future<void> _onSyncFormRequested(
-    SyncFormRequested event,
-    Emitter<EspbFormState> emit,
-  ) async {
-    // Get current form data first
-    final getResult = await _getFormData(event.formId);
-    
-    await getResult.fold(
-      (failure) async {
-        emit(EspbFormError(message: failure.message));
-      },
-      (formData) async {
-        // Skip if already synced
-        if (formData.isSynced) {
-          emit(EspbFormSynced(formData: formData));
-          return;
-        }
+      (success) {
+        emit(EspbFormSyncSuccess(spbNumber: event.spbNumber));
         
-        // Show syncing state
-        emit(EspbFormSyncLoading(formData: formData));
-        
-        // Attempt to sync
-        final syncResult = await _syncEspbFormUseCase(event.formId);
-        
-        await syncResult.fold(
-          (failure) async {
-            emit(EspbFormSyncFailed(
-              formData: formData,
-              message: failure.message,
-            ));
-          },
-          (syncedData) async {
-            emit(EspbFormSynced(formData: syncedData));
-          },
-        );
+        // Reset retry counter on success
+        _retryAttempt = 0;
       },
     );
   }
-
-  Future<void> _onSyncAllFormsRequested(
-    SyncAllFormsRequested event,
+  
+  Future<void> _onEspbFormSyncAllRequested(
+    EspbFormSyncAllRequested event,
     Emitter<EspbFormState> emit,
   ) async {
-    try {
-      // Get all pending forms first
-      final pendingFormsResult = await _getPendingForms();
-      
-      await pendingFormsResult.fold(
-        (failure) async {
-          emit(EspbFormError(message: failure.message));
-        },
-        (pendingForms) async {
-          // Skip if no pending forms
-          if (pendingForms.isEmpty) {
-            return;
-          }
-          
-          // Show syncing state
-          emit(EspbFormSyncAllLoading(pendingForms: pendingForms));
-          
-          // Attempt to sync all
-          final syncResult = await _syncEspbFormUseCase.syncAll();
-          
-          await syncResult.fold(
-            (failure) async {
-              emit(EspbFormSyncAllFailed(
-                message: failure.message,
-                successCount: 0,
-                totalCount: pendingForms.length,
-              ));
-            },
-            (successCount) async {
-              emit(EspbFormSyncAllComplete(
-                successCount: successCount,
-                totalCount: pendingForms.length,
-              ));
-            },
-          );
-        },
-      );
-    } catch (e) {
-      emit(EspbFormError(message: 'Failed to sync forms: $e'));
-    }
-  }
-
-  Future<void> _onGetFormRequested(
-    GetFormRequested event,
-    Emitter<EspbFormState> emit,
-  ) async {
-    emit(const EspbFormLoading());
-    
-    final result = await _getFormData(event.formId);
-    
-    await result.fold(
-      (failure) async {
-        emit(EspbFormError(message: failure.message));
-      },
-      (formData) async {
-        emit(EspbFormLoaded(formData: formData));
-      },
-    );
-  }
-
-  Future<void> _onGetPendingFormsRequested(
-    GetPendingFormsRequested event,
-    Emitter<EspbFormState> emit,
-  ) async {
-    emit(const EspbFormLoading());
-    
-    final result = await _getPendingForms();
-    
-    await result.fold(
-      (failure) async {
-        emit(EspbFormError(message: failure.message));
-      },
-      (forms) async {
-        emit(EspbFormListLoaded(forms: forms, isConnected: _isConnected));
-      },
-    );
-  }
-
-  Future<void> _onGetFormsForSpbRequested(
-    GetFormsForSpbRequested event,
-    Emitter<EspbFormState> emit,
-  ) async {
-    emit(const EspbFormLoading());
-    
-    final result = await _getFormsForSpb(event.noSpb);
-    
-    await result.fold(
-      (failure) async {
-        emit(EspbFormError(message: failure.message));
-      },
-      (forms) async {
-        emit(EspbFormListLoaded(forms: forms, isConnected: _isConnected));
-      },
-    );
-  }
-
-  Future<void> _onConnectivityChanged(
-    ConnectivityChanged event,
-    Emitter<EspbFormState> emit,
-  ) async {
-    // Update current state with new connectivity status
-    if (state is EspbFormListLoaded) {
-      final currentState = state as EspbFormListLoaded;
-      emit(EspbFormListLoaded(
-        forms: currentState.forms,
-        isConnected: event.isConnected,
-      ));
+    // Check if there's anything to sync
+    final hasUnsyncedData = await _syncEspbFormUseCase.hasUnsyncedData();
+    if (!hasUnsyncedData) {
+      return; // Nothing to sync
     }
     
-    // If we just got connected, trigger sync
+    emit(const EspbFormSyncingAll());
+    
+    final result = await _syncEspbFormUseCase();
+    
+    result.fold(
+      (failure) {
+        emit(EspbFormSyncAllFailure(message: failure.message));
+        
+        // Schedule retry if it's a network failure
+        if (failure is NetworkFailure) {
+          _scheduleRetryAll();
+        }
+      },
+      (syncedCount) {
+        emit(EspbFormSyncAllSuccess(syncedCount: syncedCount));
+        
+        // Reset retry counter on success
+        _retryAttempt = 0;
+      },
+    );
+  }
+  
+  Future<void> _onEspbFormConnectivityChanged(
+    EspbFormConnectivityChanged event,
+    Emitter<EspbFormState> emit,
+  ) async {
+    // If we just got connected, try to sync
     if (event.isConnected) {
-      add(const SyncAllFormsRequested());
-    }
-  }
-
-  // Helper methods to reduce code duplication
-  
-  Future<Either<Failure, EspbFormData>> _getFormData(String formId) async {
-    try {
-      final repository = _saveEspbFormUseCase.repository;
-      return await repository.getFormData(formId);
-    } catch (e) {
-      return Left(ServerFailure('Failed to get form data: $e'));
+      AppLogger.info('Connectivity restored, attempting to sync ESPB form data');
+      add(const EspbFormSyncAllRequested());
     }
   }
   
-  Future<Either<Failure, List<EspbFormData>>> _getPendingForms() async {
-    try {
-      final repository = _saveEspbFormUseCase.repository;
-      return await repository.getAllPendingForms();
-    } catch (e) {
-      return Left(ServerFailure('Failed to get pending forms: $e'));
+  void _scheduleRetry(EspbFormSyncRequested event) {
+    if (_retryAttempt >= _maxRetryAttempts) {
+      AppLogger.warning('Max retry attempts reached for SPB: ${event.spbNumber}');
+      return;
     }
+    
+    _retryAttempt++;
+    
+    // Calculate backoff duration with exponential increase
+    final backoffDuration = Duration(
+      milliseconds: _initialBackoffDuration.inMilliseconds * (1 << _retryAttempt),
+    );
+    
+    AppLogger.info('Scheduling retry in ${backoffDuration.inSeconds} seconds for SPB: ${event.spbNumber}');
+    
+    _retryTimer?.cancel();
+    _retryTimer = Timer(backoffDuration, () {
+      add(EspbFormSyncRequested(spbNumber: event.spbNumber));
+    });
   }
   
-  Future<Either<Failure, List<EspbFormData>>> _getFormsForSpb(String noSpb) async {
-    try {
-      final repository = _saveEspbFormUseCase.repository;
-      return await repository.getFormDataForSpb(noSpb);
-    } catch (e) {
-      return Left(ServerFailure('Failed to get forms for SPB: $e'));
+  void _scheduleRetryAll() {
+    if (_retryAttempt >= _maxRetryAttempts) {
+      AppLogger.warning('Max retry attempts reached for syncing all ESPB form data');
+      return;
+    }
+    
+    _retryAttempt++;
+    
+    // Calculate backoff duration with exponential increase
+    final backoffDuration = Duration(
+      milliseconds: _initialBackoffDuration.inMilliseconds * (1 << _retryAttempt),
+    );
+    
+    AppLogger.info('Scheduling retry in ${backoffDuration.inSeconds} seconds for all ESPB form data');
+    
+    _retryTimer?.cancel();
+    _retryTimer = Timer(backoffDuration, () {
+      add(const EspbFormSyncAllRequested());
+    });
+  }
+  
+  Future<void> _checkConnectivityAndSync() async {
+    final connectivityResult = await _connectivity.checkConnectivity();
+    final hasConnectivity = connectivityResult.isNotEmpty && 
+                           !connectivityResult.contains(ConnectivityResult.none);
+    
+    if (hasConnectivity) {
+      add(const EspbFormSyncAllRequested());
     }
   }
 }

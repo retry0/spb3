@@ -6,146 +6,113 @@ import '../../../../core/utils/logger.dart';
 import '../models/espb_form_data.dart';
 
 abstract class EspbFormRemoteDataSource {
-  /// Submits form data to remote API
-  ///
-  /// Throws [ServerException] for server errors
-  /// Throws [NetworkException] for network errors
-  Future<void> submitFormData(EspbFormData formData);
+  /// Submit ESPB form data to the API
+  /// 
+  /// Returns true if submission was successful
+  Future<bool> submitEspbFormData(EspbFormData formData);
   
-  /// Checks if a form has already been processed on the server
-  ///
-  /// Throws [ServerException] for server errors
-  /// Throws [NetworkException] for network errors
-  Future<bool> checkFormProcessed(String noSpb, String status);
+  /// Check if SPB data was already processed on the server
+  /// 
+  /// Returns true if the SPB has already been processed
+  Future<bool> checkSpbProcessStatus(String spbNumber);
 }
 
 class EspbFormRemoteDataSourceImpl implements EspbFormRemoteDataSource {
   final Dio _dio;
-
+  
   EspbFormRemoteDataSourceImpl({required Dio dio}) : _dio = dio;
-
+  
   @override
-  Future<void> submitFormData(EspbFormData formData) async {
+  Future<bool> submitEspbFormData(EspbFormData formData) async {
     try {
-      // Determine which endpoint to use based on form type
-      final String endpoint = formData.formType == EspbFormType.acceptance
-          ? ApiServiceEndpoints.AcceptSPBDriver
-          : ApiServiceEndpoints.AdjustSPBDriver;
-
-      // Convert form data to API format
-      final apiData = formData.toApiJson();
+      // Determine which endpoint to use based on status
+      final String endpoint = formData.status == "1" 
+          ? ApiServiceEndpoints.AcceptSPBDriver  // Accept SPB
+          : ApiServiceEndpoints.AdjustSPBDriver; // Report kendala
       
-      // Log the submission attempt
-      AppLogger.info('Submitting form data to $endpoint: $apiData');
+      // Prepare request data
+      final requestData = formData.toApiRequest();
+      
+      AppLogger.info('Submitting ESPB form data to $endpoint: $requestData');
       
       // Make API request
       final response = await _dio.put(
         endpoint,
-        data: apiData,
+        data: requestData,
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
       );
-
+      
       // Check response
-      if (response.statusCode != 200) {
-        throw ServerException(
-          'Failed to submit form data: ${response.statusCode}',
-          statusCode: response.statusCode,
-        );
+      if (response.statusCode == 200) {
+        AppLogger.info('Successfully submitted ESPB form data for SPB: ${formData.noSpb}');
+        return true;
+      } else {
+        final errorMessage = 'Failed to submit ESPB form data: ${response.statusCode} - ${response.statusMessage}';
+        AppLogger.error(errorMessage);
+        throw ServerException(errorMessage);
       }
-      
-      // Log success
-      AppLogger.info('Form data submitted successfully: ${formData.id}');
     } on DioException catch (e) {
-      // Handle Dio errors
-      AppLogger.error('Network error submitting form data: ${e.message}', e);
+      final errorMessage = 'Network error submitting ESPB form data: ${e.message}';
+      AppLogger.error(errorMessage);
       
+      // Check if it's a network connectivity issue
       if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout ||
-          e.type == DioExceptionType.sendTimeout) {
-        throw TimeoutException('Connection timed out while submitting form data');
-      } else if (e.type == DioExceptionType.connectionError) {
-        throw NetworkException('Network connection error while submitting form data');
-      } else if (e.response != null) {
-        throw ServerException(
-          'Server error: ${e.response?.statusMessage ?? "Unknown error"}',
-          statusCode: e.response?.statusCode,
-          details: e.response?.data,
-        );
-      } else {
-        throw NetworkException('Network error: ${e.message}');
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.connectionError) {
+        throw NetworkException(errorMessage);
       }
+      
+      throw ServerException(errorMessage);
     } catch (e) {
-      // Log and rethrow other errors
-      AppLogger.error('Unexpected error submitting form data: $e');
-      throw ServerException('Unexpected error submitting form data: $e');
+      final errorMessage = 'Unexpected error submitting ESPB form data: $e';
+      AppLogger.error(errorMessage);
+      throw ServerException(errorMessage);
     }
   }
-
+  
   @override
-  Future<bool> checkFormProcessed(String noSpb, String status) async {
+  Future<bool> checkSpbProcessStatus(String spbNumber) async {
     try {
-      // Get SPB data to check its current status
+      // Get SPB data from API to check its status
       final response = await _dio.get(
         ApiServiceEndpoints.dataSPB,
-        queryParameters: {
-          'noSpb': noSpb,
-        },
+        queryParameters: {'noSpb': spbNumber},
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        ),
       );
-
-      // Check response
-      if (response.statusCode != 200) {
-        throw ServerException(
-          'Failed to check SPB status: ${response.statusCode}',
-          statusCode: response.statusCode,
-        );
-      }
-
-      // Parse response data
-      final responseData = response.data;
       
-      // Check if data exists and has the expected format
-      if (responseData == null || 
-          (responseData is! Map && responseData is! List)) {
-        return false;
-      }
-      
-      // Extract SPB data
-      List<dynamic> spbList = [];
-      if (responseData is Map && responseData.containsKey('data')) {
-        final data = responseData['data'];
-        if (data is List) {
-          spbList = data;
-        } else {
-          return false;
-        }
-      } else if (responseData is List) {
-        spbList = responseData;
-      }
-      
-      // Find the SPB with matching number
-      for (final spb in spbList) {
-        if (spb is Map && spb.containsKey('noSpb') && spb['noSpb'] == noSpb) {
-          // Check if the status matches or is more advanced
-          final serverStatus = spb['status']?.toString() ?? '';
-          
-          // If server status matches our status or is more advanced, it's already processed
-          if (serverStatus == status || 
-              (status == "1" && serverStatus == "2") || 
-              (status == "1" && serverStatus == "3") ||
-              (status == "2" && serverStatus == "3")) {
-            return true;
+      if (response.statusCode == 200) {
+        // Check if data exists and has a status other than "0" (pending)
+        if (response.data != null && response.data is Map<String, dynamic>) {
+          final data = response.data as Map<String, dynamic>;
+          if (data.containsKey('data') && data['data'] is List && (data['data'] as List).isNotEmpty) {
+            final spbData = (data['data'] as List).first;
+            final status = spbData['status']?.toString() ?? "0";
+            
+            // If status is not "0", it means the SPB has been processed
+            return status != "0";
           }
         }
+        
+        // If we can't determine the status, assume it's not processed
+        return false;
+      } else {
+        AppLogger.warning('Failed to check SPB status: ${response.statusCode}');
+        return false;
       }
-      
-      return false;
-    } on DioException catch (e) {
-      // For network errors, assume not processed to be safe
-      AppLogger.error('Network error checking SPB status: ${e.message}', e);
-      return false;
     } catch (e) {
-      // Log error but assume not processed to be safe
-      AppLogger.error('Error checking SPB status: $e');
-      return false;
+      AppLogger.warning('Error checking SPB status: $e');
+      return false; // Assume not processed on error
     }
   }
 }
