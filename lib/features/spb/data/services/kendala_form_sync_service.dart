@@ -234,6 +234,14 @@ class KendalaFormSyncService {
     try {
       final data = jsonDecode(formDataJson) as Map<String, dynamic>;
       
+      // Fix the boolean conversion issue - ensure isAnyHandlingEx is properly formatted
+      if (data.containsKey('isAnyHandlingEx')) {
+        // Convert string "1" or "0" to integer 1 or 0
+        if (data['isAnyHandlingEx'] is String) {
+          data['isAnyHandlingEx'] = int.parse(data['isAnyHandlingEx'] as String);
+        }
+      }
+      
       // Validate required fields
       _validateFormData(data);
       

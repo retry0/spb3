@@ -74,11 +74,6 @@ class _CekEspbPageState extends State<CekEspbPage>
         setState(() {
           _isConnected = hasConnectivity;
         });
-        
-        // If connection is restored, try to sync pending data
-        if (hasConnectivity && !_isConnected) {
-          _syncPendingData();
-        }
       }
     });
   }
@@ -296,85 +291,76 @@ class _CekEspbPageState extends State<CekEspbPage>
 
       if (_isConnected) {
         // Online mode - send directly to API
-        await _saveDataToApi(data);
+        try {
+          // Set timeout for API request
+          final options = Options(
+            sendTimeout: const Duration(seconds: 30),
+            receiveTimeout: const Duration(seconds: 30),
+          );
+
+          // Call API to accept SPB
+          final response = await _dio.put(
+            ApiServiceEndpoints.AcceptSPBDriver,
+            data: data,
+            options: options,
+          );
+
+          if (response.statusCode == 200) {
+            // Show success message
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('SPB berhasil diterima'),
+                  backgroundColor: Colors.green,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  margin: const EdgeInsets.all(16),
+                ),
+              );
+
+              // Navigate back after successful acceptance
+              Future.delayed(const Duration(seconds: 1), () {
+                if (mounted) {
+                  Navigator.of(context).pop(true); // Return true to indicate success
+                }
+              });
+            }
+          } else {
+            throw Exception('Failed to accept SPB: ${response.statusCode}');
+          }
+        } on DioException catch (e) {
+          // Handle Dio specific errors
+          String errorMessage;
+          
+          if (e.type == DioExceptionType.connectionTimeout || 
+              e.type == DioExceptionType.sendTimeout ||
+              e.type == DioExceptionType.receiveTimeout) {
+            errorMessage = 'Koneksi timeout. Silakan coba lagi.';
+            // Save to local storage as fallback
+            await _saveDataToLocalStorage(data);
+          } else if (e.type == DioExceptionType.connectionError) {
+            errorMessage = 'Koneksi terputus. Data disimpan secara lokal.';
+            // Save to local storage as fallback
+            await _saveDataToLocalStorage(data);
+          } else {
+            errorMessage = 'Error API: ${e.message}';
+            if (e.response != null) {
+              errorMessage += ' (${e.response!.statusCode})';
+              if (e.response!.data != null) {
+                errorMessage += ': ${e.response!.data}';
+              }
+            }
+            setState(() {
+              _errorMessage = errorMessage;
+              _isLoading = false;
+            });
+          }
+        }
       } else {
         // Offline mode - save to local storage
         await _saveDataToLocalStorage(data);
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Error saving data: $e';
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _saveDataToApi(Map<String, dynamic> data) async {
-    try {
-      // Set timeout for API request
-      final options = Options(
-        sendTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-      );
-
-      // Call API to accept SPB
-      final response = await _dio.put(
-        ApiServiceEndpoints.AcceptSPBDriver,
-        data: data,
-        options: options,
-      );
-
-      if (response.statusCode == 200) {
-        // Show success message
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('SPB berhasil diterima'),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              margin: const EdgeInsets.all(16),
-            ),
-          );
-
-          // Navigate back after successful acceptance
-          Future.delayed(const Duration(seconds: 1), () {
-            if (mounted) {
-              Navigator.of(context).pop(true); // Return true to indicate success
-            }
-          });
-        }
-      } else {
-        throw Exception('Failed to accept SPB: ${response.statusCode}');
-      }
-    } on DioException catch (e) {
-      // Handle Dio specific errors
-      String errorMessage;
-      
-      if (e.type == DioExceptionType.connectionTimeout || 
-          e.type == DioExceptionType.sendTimeout ||
-          e.type == DioExceptionType.receiveTimeout) {
-        errorMessage = 'Koneksi timeout. Silakan coba lagi.';
-        // Save to local storage as fallback
-        await _saveDataToLocalStorage(data);
-      } else if (e.type == DioExceptionType.connectionError) {
-        errorMessage = 'Koneksi terputus. Data disimpan secara lokal.';
-        // Save to local storage as fallback
-        await _saveDataToLocalStorage(data);
-      } else {
-        errorMessage = 'Error API: ${e.message}';
-        if (e.response != null) {
-          errorMessage += ' (${e.response!.statusCode})';
-          if (e.response!.data != null) {
-            errorMessage += ': ${e.response!.data}';
-          }
-        }
-        setState(() {
-          _errorMessage = errorMessage;
-          _isLoading = false;
-        });
       }
     } catch (e) {
       // Handle other errors
@@ -499,31 +485,6 @@ class _CekEspbPageState extends State<CekEspbPage>
     } catch (e) {
       print('Error syncing pending data: $e');
     }
-  }
-
-  String _mapToJsonString(Map<String, dynamic> data) {
-    return data.entries
-        .map((e) => '"${e.key}":"${e.value}"')
-        .join(',')
-        .replaceAll('{', '')
-        .replaceAll('}', '');
-  }
-
-  Map<String, dynamic> _jsonStringToMap(String jsonString) {
-    // Simple conversion for our specific case
-    final map = <String, dynamic>{};
-    final pairs = jsonString.split(',');
-    
-    for (final pair in pairs) {
-      final keyValue = pair.split(':');
-      if (keyValue.length == 2) {
-        final key = keyValue[0].replaceAll('"', '').trim();
-        final value = keyValue[1].replaceAll('"', '').trim();
-        map[key] = value;
-      }
-    }
-    
-    return map;
   }
 
   void _showAcceptConfirmationDialog() {
