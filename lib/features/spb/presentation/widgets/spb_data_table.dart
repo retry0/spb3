@@ -46,6 +46,10 @@ class _SpbDataTableState extends State<SpbDataTable>
   static const int _maxSyncRetries = 3;
   Timer? _syncRetryTimer;
 
+  // Auto-sync timer
+  Timer? _autoSyncTimer;
+  static const Duration _autoSyncInterval = Duration(minutes: 5);
+
   @override
   void initState() {
     super.initState();
@@ -65,6 +69,9 @@ class _SpbDataTableState extends State<SpbDataTable>
 
     // Listen for search query changes
     _searchController.addListener(_onSearchChanged);
+
+    // Start auto-sync timer
+    _startAutoSyncTimer();
   }
 
   @override
@@ -77,7 +84,21 @@ class _SpbDataTableState extends State<SpbDataTable>
     _animationController.dispose();
     _debounceTimer?.cancel();
     _syncRetryTimer?.cancel();
+    _autoSyncTimer?.cancel();
     super.dispose();
+  }
+
+  void _startAutoSyncTimer() {
+    _autoSyncTimer?.cancel();
+    _autoSyncTimer = Timer.periodic(_autoSyncInterval, (_) {
+      // Only auto-sync if we have connectivity and user info
+      final state = context.read<SpbBloc>().state;
+      if (state is SpbLoaded && state.isConnected && _driver != null && _kdVendor != null) {
+        context.read<SpbBloc>().add(
+          SpbSyncRequested(driver: _driver!, kdVendor: _kdVendor!),
+        );
+      }
+    });
   }
 
   void _onSearchChanged() {
@@ -208,6 +229,23 @@ class _SpbDataTableState extends State<SpbDataTable>
               ),
             ),
           );
+        } else if (state is SpbLoaded && !state.isConnected) {
+          // Automatically load from SQLite when offline
+          if (_driver != null && _kdVendor != null) {
+            // No need to make a special call - the repository already handles
+            // offline data loading in the SpbLoadRequested event
+          }
+        } else if (state is SpbLoaded && state.isConnected) {
+          // Check if we were previously offline and now online
+          final previousState = context.read<SpbBloc>().state;
+          if (previousState is SpbLoaded && !previousState.isConnected) {
+            // We just came back online, trigger a sync
+            if (_driver != null && _kdVendor != null) {
+              context.read<SpbBloc>().add(
+                SpbSyncRequested(driver: _driver!, kdVendor: _kdVendor!),
+              );
+            }
+          }
         }
       },
       builder: (context, state) {
@@ -609,6 +647,7 @@ class _SpbDataTableState extends State<SpbDataTable>
 
   Widget _buildSpbCard(BuildContext context, SpbModel spb) {
     final isPending = spb.status == "0";
+    final isSynced = spb.isSynced;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -658,6 +697,14 @@ class _SpbDataTableState extends State<SpbDataTable>
                     ).format(DateTime.parse(spb.tglAntarBuah)),
                     style: const TextStyle(fontSize: 13),
                   ),
+                  const Spacer(),
+                  // Sync status indicator
+                  if (!isSynced)
+                    Icon(
+                      Icons.sync_problem,
+                      size: 14,
+                      color: Colors.orange,
+                    ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -840,6 +887,10 @@ class _SpbDataTableState extends State<SpbDataTable>
         tooltip: 'Status',
         onSort: (columnIndex, ascending) => _onSort('status', ascending),
       ),
+      DataColumn(
+        label: const Text('Sync'),
+        tooltip: 'Sync Status',
+      ),
       const DataColumn(label: Text('Action'), tooltip: 'Actions'),
       const DataColumn(label: Text('QR Code'), tooltip: 'QR Code'),
     ];
@@ -874,6 +925,9 @@ class _SpbDataTableState extends State<SpbDataTable>
             ),
           ),
           DataCell(_buildStatusBadge(context, spb.status)),
+          DataCell(
+            _buildSyncStatusIndicator(context, spb.isSynced),
+          ),
           DataCell(_buildActionCell(context, spb)),
           DataCell(
             IconButton(
@@ -901,6 +955,15 @@ class _SpbDataTableState extends State<SpbDataTable>
         }),
       );
     }).toList();
+  }
+
+  Widget _buildSyncStatusIndicator(BuildContext context, bool isSynced) {
+    return isSynced
+        ? Icon(Icons.cloud_done, color: Colors.green, size: 20)
+        : Tooltip(
+            message: 'Not synced with server',
+            child: Icon(Icons.sync_problem, color: Colors.orange, size: 20),
+          );
   }
 
   Widget _buildStatusBadge(BuildContext context, String status) {
@@ -1161,13 +1224,52 @@ class _SpbDataTableState extends State<SpbDataTable>
                             _buildDetailRow('Keterangan', spb.keterangan!),
                           _buildDetailRow(
                             'Driver',
-                            spb.driverName ?? spb.driverName ?? 'N/A',
+                            spb.driverName ?? spb.driver ?? 'N/A',
                           ),
                           _buildDetailRow('No Polisi', spb.noPolisi ?? 'N/A'),
                           _buildDetailRow(
                             'Synced',
                             spb.isSynced ? 'Yes' : 'No',
                           ),
+                          if (!spb.isSynced) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.sync_problem, color: Colors.orange, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Not synced with server',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.orange,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'This data is stored locally and will be synced when online',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.orange.shade800,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

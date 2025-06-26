@@ -94,6 +94,7 @@ class SpbLocalDataSourceImpl implements SpbLocalDataSource {
 
           // Add metadata
           data['updated_at'] = now;
+          data['is_synced'] = 1; // Mark as synced since it came from server
 
           if (existingResults.isEmpty) {
             // Insert new record

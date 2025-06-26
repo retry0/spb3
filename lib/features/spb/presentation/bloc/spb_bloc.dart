@@ -393,9 +393,10 @@ class SpbBloc extends Bloc<SpbEvent, SpbState> {
   ) async {
     if (state is SpbLoaded) {
       final currentState = state as SpbLoaded;
-      // If we just got connected, try to sync
+      
+      // If we just got connected and we were previously disconnected, try to sync
       if (event.isConnected && !currentState.isConnected) {
-        // We'll handle this in a separate event
+        // We'll handle this in the UI layer to avoid circular dependencies
       }
 
       emit(

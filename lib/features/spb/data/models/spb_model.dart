@@ -64,7 +64,7 @@ class SpbModel extends Equatable {
               ? (map['tot_berat_taksasi'] as num).toDouble()
               : null,
       driverName: map['driverName'] as String?,
-      millTujuanName: map['millTujuanName'] as String,
+      millTujuanName: map['millTujuanName'] as String?,
       createdAt:
           map['created_at'] != null
               ? DateTime.fromMillisecondsSinceEpoch(map['created_at'] * 1000)
