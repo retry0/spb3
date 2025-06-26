@@ -29,7 +29,7 @@ class DatabaseHelper {
 
       return await openDatabase(
         path,
-        version: 6, // Increased version for auth_sync_queue table
+        version: 7, // Increased version for espb_form_data table
         onCreate: _onCreate,
         onUpgrade: _onUpgrade,
         onConfigure: _onConfigure,
@@ -186,6 +186,26 @@ class DatabaseHelper {
           updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
         )
       ''');
+      
+      // ESPB form data table for storing form submissions
+      await db.execute('''
+        CREATE TABLE espb_form_data (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          no_spb TEXT UNIQUE NOT NULL,
+          status TEXT NOT NULL,
+          created_by TEXT NOT NULL,
+          latitude TEXT NOT NULL,
+          longitude TEXT NOT NULL,
+          alasan TEXT,
+          is_any_handling_ex INTEGER,
+          timestamp INTEGER NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          retry_count INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT,
+          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )
+      ''');
 
       // Create indexes for better performance
       await db.execute('CREATE INDEX idx_settings_key ON settings (key)');
@@ -239,6 +259,15 @@ class DatabaseHelper {
       await db.execute(
         'CREATE INDEX idx_auth_sync_queue_operation ON auth_sync_queue (operation)',
       );
+      await db.execute(
+        'CREATE INDEX idx_espb_form_data_no_spb ON espb_form_data (no_spb)',
+      );
+      await db.execute(
+        'CREATE INDEX idx_espb_form_data_is_synced ON espb_form_data (is_synced)',
+      );
+      await db.execute(
+        'CREATE INDEX idx_espb_form_data_timestamp ON espb_form_data (timestamp)',
+      );
 
       AppLogger.info('Database tables created successfully');
     } catch (e) {
@@ -273,6 +302,11 @@ class DatabaseHelper {
     if (oldVersion < 6) {
       // Migration to add auth sync queue table
       await _migrateToAddAuthSyncQueueTable(db);
+    }
+    
+    if (oldVersion < 7) {
+      // Migration to add ESPB form data table
+      await _migrateToAddEspbFormDataTable(db);
     }
   }
 
@@ -538,6 +572,59 @@ class DatabaseHelper {
       rethrow;
     }
   }
+  
+  Future<void> _migrateToAddEspbFormDataTable(Database db) async {
+    try {
+      AppLogger.info('Migrating to add ESPB form data table...');
+
+      // Check if espb_form_data table already exists
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='espb_form_data'",
+      );
+
+      if (tables.isEmpty) {
+        // Create espb_form_data table
+        await db.execute('''
+          CREATE TABLE espb_form_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            no_spb TEXT UNIQUE NOT NULL,
+            status TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            latitude TEXT NOT NULL,
+            longitude TEXT NOT NULL,
+            alasan TEXT,
+            is_any_handling_ex INTEGER,
+            timestamp INTEGER NOT NULL,
+            is_synced INTEGER NOT NULL DEFAULT 0,
+            retry_count INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+          )
+        ''');
+
+        // Create indexes
+        await db.execute(
+          'CREATE INDEX idx_espb_form_data_no_spb ON espb_form_data (no_spb)',
+        );
+        await db.execute(
+          'CREATE INDEX idx_espb_form_data_is_synced ON espb_form_data (is_synced)',
+        );
+        await db.execute(
+          'CREATE INDEX idx_espb_form_data_timestamp ON espb_form_data (timestamp)',
+        );
+
+        AppLogger.info('ESPB form data table created successfully');
+      } else {
+        AppLogger.info(
+          'ESPB form data table already exists, skipping migration',
+        );
+      }
+    } catch (e) {
+      AppLogger.error('Failed to migrate to add ESPB form data table', e);
+      rethrow;
+    }
+  }
 
   // Generic CRUD operations
   Future<int> insert(String table, Map<String, dynamic> data) async {
@@ -649,6 +736,7 @@ class DatabaseHelper {
       await txn.delete('auth_tokens');
       await txn.delete('user_credentials');
       await txn.delete('auth_sync_queue');
+      await txn.delete('espb_form_data');
     });
     AppLogger.info('All database data cleared');
   }
