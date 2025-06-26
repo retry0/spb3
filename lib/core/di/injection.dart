@@ -43,6 +43,13 @@ import '../../features/spb/domain/usecases/get_spb_for_driver_usecase.dart';
 import '../../features/spb/domain/usecases/sync_spb_data_usecase.dart';
 import '../../features/spb/domain/usecases/generate_spb_qr_code_usecase.dart';
 import '../../features/spb/presentation/bloc/spb_bloc.dart';
+import '../../features/spb/data/datasources/espb_form_local_datasource.dart';
+import '../../features/spb/data/datasources/espb_form_remote_datasource.dart';
+import '../../features/spb/data/repositories/espb_form_repository_impl.dart';
+import '../../features/spb/domain/repositories/espb_form_repository.dart';
+import '../../features/spb/domain/usecases/save_espb_form_usecase.dart';
+import '../../features/spb/domain/usecases/sync_espb_form_usecase.dart';
+import '../../features/spb/presentation/bloc/espb_form_bloc.dart';
 
 final getIt = GetIt.instance;
 
@@ -135,6 +142,15 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton<SpbLocalDataSource>(
     () => SpbLocalDataSourceImpl(dbHelper: getIt<DatabaseHelper>()),
   );
+  
+  // ESPB Form data sources
+  getIt.registerLazySingleton<EspbFormLocalDataSource>(
+    () => EspbFormLocalDataSourceImpl(dbHelper: getIt<DatabaseHelper>()),
+  );
+  
+  getIt.registerLazySingleton<EspbFormRemoteDataSource>(
+    () => EspbFormRemoteDataSourceImpl(dio: getIt<Dio>()),
+  );
 
   // Repositories
   getIt.registerLazySingleton<AuthRepository>(
@@ -169,6 +185,16 @@ Future<void> configureDependencies() async {
       prefs: getIt<SharedPreferences>(),
     ),
   );
+  
+  // ESPB Form repository
+  getIt.registerLazySingleton<EspbFormRepository>(
+    () => EspbFormRepositoryImpl(
+      localDataSource: getIt<EspbFormLocalDataSource>(),
+      remoteDataSource: getIt<EspbFormRemoteDataSource>(),
+      connectivity: getIt<Connectivity>(),
+      uuid: getIt<Uuid>(),
+    ),
+  );
 
   // Use cases
   getIt.registerLazySingleton(() => LoginUseCase(getIt<AuthRepository>()));
@@ -186,6 +212,17 @@ Future<void> configureDependencies() async {
   );
   getIt.registerLazySingleton(() => SyncSpbDataUseCase(getIt<SpbRepository>()));
   getIt.registerLazySingleton(() => GenerateSpbQrCodeUseCase());
+  
+  // ESPB Form use cases
+  getIt.registerLazySingleton(
+    () => SaveEspbFormUseCase(
+      repository: getIt<EspbFormRepository>(),
+      uuid: getIt<Uuid>(),
+    ),
+  );
+  getIt.registerLazySingleton(
+    () => SyncEspbFormUseCase(repository: getIt<EspbFormRepository>()),
+  );
 
   // Session Manager
   getIt.registerLazySingleton<SessionManager>(
@@ -236,6 +273,15 @@ Future<void> configureDependencies() async {
     () => SpbBloc(
       getSpbForDriverUseCase: getIt<GetSpbForDriverUseCase>(),
       syncSpbDataUseCase: getIt<SyncSpbDataUseCase>(),
+      connectivity: getIt<Connectivity>(),
+    ),
+  );
+  
+  // ESPB Form BLoC
+  getIt.registerFactory(
+    () => EspbFormBloc(
+      saveEspbFormUseCase: getIt<SaveEspbFormUseCase>(),
+      syncEspbFormUseCase: getIt<SyncEspbFormUseCase>(),
       connectivity: getIt<Connectivity>(),
     ),
   );
