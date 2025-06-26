@@ -156,7 +156,20 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
       );
 
       if (results.isNotEmpty) {
-        return UserModel.fromDatabase(results.first);
+        // Safely handle potential null values
+        final data = results.first;
+        
+        // Ensure required fields are present
+        if (data['id'] == null || data['UserName'] == null || data['Nama'] == null) {
+          AppLogger.error('User data is missing required fields: $data');
+          return null;
+        }
+        
+        return UserModel(
+          Id: data['id'] as String,
+          UserName: data['UserName'] as String,
+          Nama: data['Nama'] as String,
+        );
       }
       return null;
     } catch (e) {
@@ -176,7 +189,20 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
       );
 
       if (results.isNotEmpty) {
-        return UserModel.fromDatabase(results.first);
+        // Safely handle potential null values
+        final data = results.first;
+        
+        // Ensure required fields are present
+        if (data['id'] == null || data['UserName'] == null || data['Nama'] == null) {
+          AppLogger.error('User data is missing required fields: $data');
+          return null;
+        }
+        
+        return UserModel(
+          Id: data['id'] as String,
+          UserName: data['UserName'] as String,
+          Nama: data['Nama'] as String,
+        );
       }
       return null;
     } catch (e) {
