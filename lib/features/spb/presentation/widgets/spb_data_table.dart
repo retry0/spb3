@@ -1228,6 +1228,18 @@ class _SpbDataTableState extends State<SpbDataTable>
                           ),
                           _buildDetailRow('No Polisi', spb.noPolisi ?? 'N/A'),
                           _buildDetailRow(
+                            'Jumlah Janjang',
+                            spb.jumJjg ?? 'N/A',
+                          ),
+                          _buildDetailRow(
+                            'Brondolan',
+                            spb.brondolan ?? 'N/A',
+                          ),
+                          _buildDetailRow(
+                            'Total Berat Taksasi',
+                            spb.totBeratTaksasi ?? 'N/A',
+                          ),
+                          _buildDetailRow(
                             'Synced',
                             spb.isSynced ? 'Yes' : 'No',
                           ),
