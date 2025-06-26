@@ -19,13 +19,13 @@ class UserModel extends User {
 
   factory UserModel.fromDatabase(Map<String, dynamic> data) {
     return UserModel(
-      Id: data['Id'] as String,
+      Id: data['id'] as String,
       UserName: data['UserName'] as String,
       Nama: data['Nama'] as String,
     );
   }
 
   Map<String, dynamic> toDatabase() {
-    return {'id': Id, 'userName': UserName, 'Nama': Nama};
+    return {'id': Id, 'UserName': UserName, 'Nama': Nama};
   }
 }

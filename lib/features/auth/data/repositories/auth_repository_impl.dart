@@ -56,7 +56,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
           // Update last online authentication timestamp
           await localDataSource.updateLastOnlineAuth(userName);
-
+          AppLogger.warning('AUTH OFFLINE: ${userName}');
           return Right(tokens);
         } on NetworkException catch (e) {
           // Network error - try offline authentication
