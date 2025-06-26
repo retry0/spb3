@@ -43,6 +43,7 @@ import '../../features/spb/domain/usecases/get_spb_for_driver_usecase.dart';
 import '../../features/spb/domain/usecases/sync_spb_data_usecase.dart';
 import '../../features/spb/domain/usecases/generate_spb_qr_code_usecase.dart';
 import '../../features/spb/presentation/bloc/spb_bloc.dart';
+import '../../features/spb/data/services/kendala_form_sync_service.dart';
 
 final getIt = GetIt.instance;
 
@@ -105,6 +106,15 @@ Future<void> configureDependencies() async {
     () => SyncService(
       userProfileRepository: getIt<UserProfileRepository>(),
       connectivityService: getIt<ConnectivityService>(),
+    ),
+  );
+
+  // Kendala Form Sync Service
+  getIt.registerLazySingleton<KendalaFormSyncService>(
+    () => KendalaFormSyncService(
+      dio: getIt<Dio>(),
+      maxRetries: 3,
+      initialBackoff: const Duration(seconds: 5),
     ),
   );
 

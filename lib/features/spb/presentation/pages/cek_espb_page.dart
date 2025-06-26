@@ -10,6 +10,8 @@ import '../../data/models/spb_model.dart';
 import '../../../../core/config/api_endpoints.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../pages/spb_page.dart';
+import '../../data/services/kendala_form_sync_service.dart';
+import '../widgets/kendala_sync_status_indicator.dart';
 
 class CekEspbPage extends StatefulWidget {
   final SpbModel spb;
@@ -31,6 +33,7 @@ class _CekEspbPageState extends State<CekEspbPage>
   late Animation<double> _fadeAnimation;
   bool _isConnected = true;
   final Connectivity _connectivity = Connectivity();
+  final KendalaFormSyncService _syncService = getIt<KendalaFormSyncService>();
 
   @override
   void initState() {
@@ -393,7 +396,7 @@ class _CekEspbPageState extends State<CekEspbPage>
       data['timestamp'] = DateTime.now().millisecondsSinceEpoch;
       
       // Save data as JSON string
-      await prefs.setString(spbKey, _mapToJsonString(data));
+      await prefs.setString(spbKey, jsonEncode(data));
       
       // Keep track of pending SPBs
       final pendingSpbs = prefs.getStringList('pending_spbs') ?? [];
@@ -459,7 +462,7 @@ class _CekEspbPageState extends State<CekEspbPage>
         
         if (jsonData != null) {
           try {
-            final data = _jsonStringToMap(jsonData);
+            final data = jsonDecode(jsonData);
             
             // Call API
             final response = await _dio.put(
@@ -789,6 +792,14 @@ class _CekEspbPageState extends State<CekEspbPage>
                       ],
                     ),
                   ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Sync status indicator
+                KendalaSyncStatusIndicator(
+                  spbNumber: widget.spb.noSpb,
+                  onRetry: () => _syncService.syncForm(widget.spb.noSpb),
                 ),
 
                 const SizedBox(height: 24),
