@@ -124,22 +124,6 @@ class DatabaseHelper {
         )
       ''');
 
-      // QR codes table
-      await db.execute('''
-        CREATE TABLE qr_codes (
-          id TEXT PRIMARY KEY,
-          driver TEXT NOT NULL,
-          kd_vendor TEXT NOT NULL,
-          content TEXT NOT NULL,
-          size INTEGER NOT NULL,
-          error_correction_level TEXT NOT NULL,
-          foreground_color TEXT NOT NULL,
-          background_color TEXT NOT NULL,
-          created_at INTEGER NOT NULL,
-          updated_at INTEGER NOT NULL
-        )
-      ''');
-
       // SPB data table
       await db.execute('''
         CREATE TABLE spb_data (
@@ -232,10 +216,6 @@ class DatabaseHelper {
       await db.execute(
         'CREATE INDEX idx_sync_queue_priority ON sync_queue (priority)',
       );
-      await db.execute('CREATE INDEX idx_qr_codes_driver ON qr_codes (driver)');
-      await db.execute(
-        'CREATE INDEX idx_qr_codes_created_at ON qr_codes (created_at)',
-      );
       await db.execute('CREATE INDEX idx_spb_data_driver ON spb_data (driver)');
       await db.execute(
         'CREATE INDEX idx_spb_data_kd_vendor ON spb_data (kode_vendor)',
@@ -275,11 +255,6 @@ class DatabaseHelper {
     if (oldVersion < 2) {
       // Migration to add username support
       await _migrateToUsernameAuth(db);
-    }
-
-    if (oldVersion < 3) {
-      // Migration to add QR codes table
-      await _migrateToAddQrCodesTable(db);
     }
 
     if (oldVersion < 4) {
@@ -342,50 +317,6 @@ class DatabaseHelper {
       AppLogger.info('Username authentication migration completed');
     } catch (e) {
       AppLogger.error('Failed to migrate to username authentication', e);
-      rethrow;
-    }
-  }
-
-  Future<void> _migrateToAddQrCodesTable(Database db) async {
-    try {
-      AppLogger.info('Migrating to add QR codes table...');
-
-      // Check if qr_codes table already exists
-      final tables = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='qr_codes'",
-      );
-
-      if (tables.isEmpty) {
-        // Create QR codes table
-        await db.execute('''
-          CREATE TABLE qr_codes (
-            id TEXT PRIMARY KEY,
-            driver TEXT NOT NULL,
-            kd_vendor TEXT NOT NULL,
-            content TEXT NOT NULL,
-            size INTEGER NOT NULL,
-            error_correction_level TEXT NOT NULL,
-            foreground_color TEXT NOT NULL,
-            background_color TEXT NOT NULL,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
-          )
-        ''');
-
-        // Create indexes
-        await db.execute(
-          'CREATE INDEX idx_qr_codes_driver ON qr_codes (driver)',
-        );
-        await db.execute(
-          'CREATE INDEX idx_qr_codes_created_at ON qr_codes (created_at)',
-        );
-
-        AppLogger.info('QR codes table created successfully');
-      } else {
-        AppLogger.info('QR codes table already exists, skipping migration');
-      }
-    } catch (e) {
-      AppLogger.error('Failed to migrate to add QR codes table', e);
       rethrow;
     }
   }
@@ -714,7 +645,6 @@ class DatabaseHelper {
       await txn.delete('data_entries');
       await txn.delete('activity_logs');
       await txn.delete('sync_queue');
-      await txn.delete('qr_codes');
       await txn.delete('spb_data');
       await txn.delete('auth_tokens');
       await txn.delete('user_credentials');

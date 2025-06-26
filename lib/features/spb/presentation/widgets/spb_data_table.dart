@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
+import 'package:pull_to_refresh/pull_to_refresh.dart' show RefreshController;
 import 'dart:async';
 
 import '../../../auth/presentation/bloc/auth_bloc.dart';
@@ -139,19 +140,21 @@ class _SpbDataTableState extends State<SpbDataTable>
   void _retrySync() {
     if (_syncRetryCount < _maxSyncRetries) {
       _syncRetryCount++;
-      
+
       // Exponential backoff for retries
       final backoffDuration = Duration(seconds: 2 * _syncRetryCount);
-      
+
       _syncRetryTimer?.cancel();
       _syncRetryTimer = Timer(backoffDuration, () {
         _syncData();
       });
-      
+
       // Show retry message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Retrying sync (${_syncRetryCount}/$_maxSyncRetries)...'),
+          content: Text(
+            'Retrying sync (${_syncRetryCount}/$_maxSyncRetries)...',
+          ),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -159,7 +162,9 @@ class _SpbDataTableState extends State<SpbDataTable>
       // Max retries reached
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Sync failed after multiple attempts. Please try again later.'),
+          content: const Text(
+            'Sync failed after multiple attempts. Please try again later.',
+          ),
           backgroundColor: Colors.red,
           duration: const Duration(seconds: 3),
         ),
