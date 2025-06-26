@@ -9,8 +9,6 @@ import 'core/router/app_router.dart';
 import 'core/utils/bloc_observer.dart';
 import 'core/utils/logger.dart';
 import 'core/storage/database_helper.dart';
-import 'core/config/environment_config.dart';
-import 'core/config/environment_validator.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/services/sync_service.dart';
 import 'core/utils/auth_sync_service.dart';
@@ -29,47 +27,6 @@ void main() async {
 
   // Initialize logging
   AppLogger.init();
-
-  try {
-    // Initialize environment configuration
-    await EnvironmentConfig.initialize();
-    AppLogger.info('Environment: ${EnvironmentConfig.environmentName}');
-    AppLogger.info('Base URL: ${EnvironmentConfig.baseUrl}');
-
-    // Validate environment configuration
-    final validation = EnvironmentValidator.validateEnvironment();
-    if (!validation.isValid) {
-      AppLogger.error('Environment validation failed:');
-      AppLogger.error(validation.getReport());
-
-      // In development, show validation errors but continue
-      if (EnvironmentConfig.isDevelopment) {
-        AppLogger.warning(
-          'Continuing with invalid configuration in development mode',
-        );
-      } else {
-        // In production/staging, fail fast
-        throw Exception('Invalid environment configuration');
-      }
-    }
-
-    if (validation.warnings.isNotEmpty) {
-      AppLogger.warning('Environment warnings:');
-      for (final warning in validation.warnings) {
-        AppLogger.warning('  • $warning');
-      }
-    }
-  } catch (e) {
-    AppLogger.error('Failed to initialize environment configuration: $e');
-
-    // Show user-friendly error in debug mode
-    if (EnvironmentConfig.isDevelopment) {
-      runApp(ErrorApp(error: e.toString()));
-      return;
-    } else {
-      rethrow;
-    }
-  }
 
   // Initialize SQLite database
   await DatabaseHelper.instance.database;
@@ -179,19 +136,6 @@ class ErrorApp extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 14, color: Colors.grey),
                 ),
-                const SizedBox(height: 16),
-                if (EnvironmentConfig.isDevelopment) ...[
-                  const Text(
-                    'Development Mode Tips:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '• Ensure your backend server is running\n'
-                    '• Check environment variables are set correctly',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ],
               ],
             ),
           ),

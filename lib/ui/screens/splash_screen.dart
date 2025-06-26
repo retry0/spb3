@@ -263,39 +263,6 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
 
                 const SizedBox(height: 24),
-
-                // Show configuration info in development mode
-                if (EnvironmentConfig.isDevelopment) ...[
-                  AnimatedBuilder(
-                    animation: _animationController,
-                    builder: (context, child) {
-                      return FadeTransition(
-                        opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
-                          CurvedAnimation(
-                            parent: _animationController,
-                            curve: const Interval(
-                              0.7,
-                              1.0,
-                              curve: Curves.easeIn,
-                            ),
-                          ),
-                        ),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 32),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.2),
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
               ],
             ),
           ),

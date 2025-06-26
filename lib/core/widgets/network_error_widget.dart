@@ -267,8 +267,6 @@ class _NetworkErrorWidgetState extends State<NetworkErrorWidget> {
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            _buildInfoRow('Environment', EnvironmentConfig.environmentName),
-            _buildInfoRow('Base URL', EnvironmentConfig.baseUrl),
           ],
         ),
       ),

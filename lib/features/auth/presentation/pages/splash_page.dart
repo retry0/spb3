@@ -95,56 +95,17 @@ class _SplashPageState extends State<SplashPage> {
                 const Icon(Icons.security, size: 100, color: Colors.white),
                 const SizedBox(height: 24),
                 const Text(
-                  'SPB Secure',
+                  'e-SPB SMART',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Secure Flutter Application',
-                  style: TextStyle(fontSize: 16, color: Colors.white70),
-                ),
                 const SizedBox(height: 48),
                 const CircularProgressIndicator(
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
-                const SizedBox(height: 24),
-
-                // Show configuration info in development mode
-                if (EnvironmentConfig.isDevelopment) ...[
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 32),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          'Environment: ${EnvironmentConfig.environmentName}',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'API: ${EnvironmentConfig.baseUrl}',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontFamily: 'monospace',
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
