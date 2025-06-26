@@ -13,9 +13,9 @@ class SpbModel extends Equatable {
   final String? kodeVendor;
   final String? driver;
   final String? noPolisi;
-  final String? jumJjg;  // Changed from int? to String?
-  final String? brondolan;  // Changed from int? to String?
-  final String? totBeratTaksasi;  // Changed from double? to String?
+  final String? jumJjg; // Changed from int? to String?
+  final String? brondolan; // Changed from int? to String?
+  final String? totBeratTaksasi; // Changed from double? to String?
   final String? driverName;
   final String? millTujuanName;
   final DateTime? createdAt;
@@ -41,10 +41,51 @@ class SpbModel extends Equatable {
     this.isSynced = true,
   });
 
-  factory SpbModel.fromJson(Map<String, dynamic> json) =>
-      _$SpbModelFromJson(json);
+  factory SpbModel.fromJson(Map<String, dynamic> json) {
+    return SpbModel(
+      noSpb: json['noSpb'] as String,
+      tglAntarBuah: json['tglAntarBuah'] as String,
+      millTujuan: json['millTujuan'] as String,
+      status: json['status'] as String,
+      keterangan: json['keterangan'] as String?,
+      kodeVendor: json['kodeVendor'] as String?,
+      driver: json['driver'] as String?,
+      noPolisi: json['noPolisi'] as String?,
+      jumJjg: json['jumJjg']?.toString(), // Convert to String
+      brondolan: json['brondolan']?.toString(), // Convert to String
+      totBeratTaksasi: json['totBeratTaksasi']?.toString(), // Convert to String
+      driverName: json['driverName'] as String?,
+      millTujuanName: json['millTujuanName'] as String?,
+      createdAt:
+          json['createdAt'] == null
+              ? null
+              : DateTime.parse(json['createdAt'] as String),
+      updatedAt:
+          json['updatedAt'] == null
+              ? null
+              : DateTime.parse(json['updatedAt'] as String),
+      isSynced: json['isSynced'] as bool? ?? true,
+    );
+  }
 
-  Map<String, dynamic> toJson() => _$SpbModelToJson(this);
+  Map<String, dynamic> toJson() => {
+    'noSpb': noSpb,
+    'tglAntarBuah': tglAntarBuah,
+    'millTujuan': millTujuan,
+    'status': status,
+    'keterangan': keterangan,
+    'kodeVendor': kodeVendor,
+    'driver': driver,
+    'noPolisi': noPolisi,
+    'jumJjg': jumJjg,
+    'brondolan': brondolan,
+    'totBeratTaksasi': totBeratTaksasi,
+    'driverName': driverName,
+    'millTujuanName': millTujuanName,
+    'createdAt': createdAt?.toIso8601String(),
+    'updatedAt': updatedAt?.toIso8601String(),
+    'isSynced': isSynced,
+  };
 
   // For database operations
   factory SpbModel.fromDatabase(Map<String, dynamic> map) {
@@ -57,9 +98,10 @@ class SpbModel extends Equatable {
       kodeVendor: map['kode_vendor'] as String?,
       driver: map['driver'] as String?,
       noPolisi: map['no_polisi'] as String?,
-      jumJjg: map['jum_jjg']?.toString(),  // Convert to String
-      brondolan: map['brondolan']?.toString(),  // Convert to String
-      totBeratTaksasi: map['tot_berat_taksasi']?.toString(),  // Convert to String
+      jumJjg: map['jum_jjg']?.toString(), // Convert to String
+      brondolan: map['brondolan']?.toString(), // Convert to String
+      totBeratTaksasi:
+          map['tot_berat_taksasi']?.toString(), // Convert to String
       driverName: map['driverName'] as String?,
       millTujuanName: map['millTujuanName'] as String?,
       createdAt:
@@ -85,9 +127,9 @@ class SpbModel extends Equatable {
       'kode_vendor': kodeVendor,
       'driver': driver,
       'no_polisi': noPolisi,
-      'jum_jjg': jumJjg,  // Store as String
-      'brondolan': brondolan,  // Store as String
-      'tot_berat_taksasi': totBeratTaksasi,  // Store as String
+      'jum_jjg': jumJjg, // Store as String
+      'brondolan': brondolan, // Store as String
+      'tot_berat_taksasi': totBeratTaksasi, // Store as String
       'driverName': driverName,
       'millTujuanName': millTujuanName,
       'created_at':

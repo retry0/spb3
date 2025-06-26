@@ -93,7 +93,10 @@ class _SpbDataTableState extends State<SpbDataTable>
     _autoSyncTimer = Timer.periodic(_autoSyncInterval, (_) {
       // Only auto-sync if we have connectivity and user info
       final state = context.read<SpbBloc>().state;
-      if (state is SpbLoaded && state.isConnected && _driver != null && _kdVendor != null) {
+      if (state is SpbLoaded &&
+          state.isConnected &&
+          _driver != null &&
+          _kdVendor != null) {
         context.read<SpbBloc>().add(
           SpbSyncRequested(driver: _driver!, kdVendor: _kdVendor!),
         );
@@ -700,11 +703,7 @@ class _SpbDataTableState extends State<SpbDataTable>
                   const Spacer(),
                   // Sync status indicator
                   if (!isSynced)
-                    Icon(
-                      Icons.sync_problem,
-                      size: 14,
-                      color: Colors.orange,
-                    ),
+                    Icon(Icons.sync_problem, size: 14, color: Colors.orange),
                 ],
               ),
               const SizedBox(height: 8),
@@ -887,10 +886,7 @@ class _SpbDataTableState extends State<SpbDataTable>
         tooltip: 'Status',
         onSort: (columnIndex, ascending) => _onSort('status', ascending),
       ),
-      DataColumn(
-        label: const Text('Sync'),
-        tooltip: 'Sync Status',
-      ),
+      DataColumn(label: const Text('Sync'), tooltip: 'Sync Status'),
       const DataColumn(label: Text('Action'), tooltip: 'Actions'),
       const DataColumn(label: Text('QR Code'), tooltip: 'QR Code'),
     ];
@@ -925,9 +921,7 @@ class _SpbDataTableState extends State<SpbDataTable>
             ),
           ),
           DataCell(_buildStatusBadge(context, spb.status)),
-          DataCell(
-            _buildSyncStatusIndicator(context, spb.isSynced),
-          ),
+          DataCell(_buildSyncStatusIndicator(context, spb.isSynced)),
           DataCell(_buildActionCell(context, spb)),
           DataCell(
             IconButton(
@@ -961,9 +955,9 @@ class _SpbDataTableState extends State<SpbDataTable>
     return isSynced
         ? Icon(Icons.cloud_done, color: Colors.green, size: 20)
         : Tooltip(
-            message: 'Not synced with server',
-            child: Icon(Icons.sync_problem, color: Colors.orange, size: 20),
-          );
+          message: 'Not synced with server',
+          child: Icon(Icons.sync_problem, color: Colors.orange, size: 20),
+        );
   }
 
   Widget _buildStatusBadge(BuildContext context, String status) {
@@ -1228,6 +1222,15 @@ class _SpbDataTableState extends State<SpbDataTable>
                           ),
                           _buildDetailRow('No Polisi', spb.noPolisi ?? 'N/A'),
                           _buildDetailRow(
+                            'Jumlah Janjang',
+                            spb.jumJjg ?? 'N/A',
+                          ),
+                          _buildDetailRow('Brondolan', spb.brondolan ?? 'N/A'),
+                          _buildDetailRow(
+                            'Total Berat Taksasi',
+                            spb.totBeratTaksasi ?? 'N/A',
+                          ),
+                          _buildDetailRow(
                             'Synced',
                             spb.isSynced ? 'Yes' : 'No',
                           ),
@@ -1238,15 +1241,22 @@ class _SpbDataTableState extends State<SpbDataTable>
                               decoration: BoxDecoration(
                                 color: Colors.orange.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                                border: Border.all(
+                                  color: Colors.orange.withOpacity(0.3),
+                                ),
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.sync_problem, color: Colors.orange, size: 20),
+                                  const Icon(
+                                    Icons.sync_problem,
+                                    color: Colors.orange,
+                                    size: 20,
+                                  ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Not synced with server',
