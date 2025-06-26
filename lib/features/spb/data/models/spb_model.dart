@@ -13,9 +13,9 @@ class SpbModel extends Equatable {
   final String? kodeVendor;
   final String? driver;
   final String? noPolisi;
-  final int? jumJjg;
-  final int? brondolan;
-  final double? totBeratTaksasi;
+  final String? jumJjg;  // Changed from int? to String?
+  final String? brondolan;  // Changed from int? to String?
+  final String? totBeratTaksasi;  // Changed from double? to String?
   final String? driverName;
   final String? millTujuanName;
   final DateTime? createdAt;
@@ -57,12 +57,9 @@ class SpbModel extends Equatable {
       kodeVendor: map['kode_vendor'] as String?,
       driver: map['driver'] as String?,
       noPolisi: map['no_polisi'] as String?,
-      jumJjg: map['jum_jjg'] as int?,
-      brondolan: map['brondolan'] as int?,
-      totBeratTaksasi:
-          map['tot_berat_taksasi'] != null
-              ? (map['tot_berat_taksasi'] as num).toDouble()
-              : null,
+      jumJjg: map['jum_jjg']?.toString(),  // Convert to String
+      brondolan: map['brondolan']?.toString(),  // Convert to String
+      totBeratTaksasi: map['tot_berat_taksasi']?.toString(),  // Convert to String
       driverName: map['driverName'] as String?,
       millTujuanName: map['millTujuanName'] as String?,
       createdAt:
@@ -88,9 +85,9 @@ class SpbModel extends Equatable {
       'kode_vendor': kodeVendor,
       'driver': driver,
       'no_polisi': noPolisi,
-      'jum_jjg': jumJjg,
-      'brondolan': brondolan,
-      'tot_berat_taksasi': totBeratTaksasi,
+      'jum_jjg': jumJjg,  // Store as String
+      'brondolan': brondolan,  // Store as String
+      'tot_berat_taksasi': totBeratTaksasi,  // Store as String
       'driverName': driverName,
       'millTujuanName': millTujuanName,
       'created_at':
@@ -110,9 +107,9 @@ class SpbModel extends Equatable {
     String? kodeVendor,
     String? driver,
     String? noPolisi,
-    int? jumJjg,
-    int? brondolan,
-    double? totBeratTaksasi,
+    String? jumJjg,
+    String? brondolan,
+    String? totBeratTaksasi,
     String? driverName,
     String? millTujuanName,
     DateTime? createdAt,

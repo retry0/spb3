@@ -136,8 +136,6 @@ class _KendalaFormPageState extends State<KendalaFormPage>
               onPressed: () {
                 // Navigator.of(context).pop();
                 // Navigator.of(context).pop(); // Go back to previous screen
-                // Navigator.of(context).pop();
-                // Navigator.of(context).pop(); // Go back to previous screen
                 // Navigate to Kendala Form page
                 Navigator.push(
                   context,

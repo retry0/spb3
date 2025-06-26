@@ -159,6 +159,7 @@ class _CekEspbPageState extends State<CekEspbPage>
             TextButton(
               child: const Text('Batal'),
               onPressed: () {
+                // Navigator.of(context).pop();
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => SpbPage()),
@@ -200,6 +201,7 @@ class _CekEspbPageState extends State<CekEspbPage>
             TextButton(
               child: const Text('Cancel'),
               onPressed: () {
+                // Navigator.of(context).pop();
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => SpbPage()),
