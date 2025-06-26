@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:convert';
 import '../pages/spb_page.dart';
 
 import '../../../../core/di/injection.dart';
@@ -139,7 +140,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
                 // Navigate to Kendala Form page
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => SpbPage()),
+                  MaterialPageRoute(builder: (context) => const SpbPage()),
                 );
               },
             ),
@@ -185,7 +186,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
                 // Navigator.of(context).pop();
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => SpbPage()),
+                  MaterialPageRoute(builder: (context) => const SpbPage()),
                 );
               },
             ),
@@ -227,7 +228,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
                 // Navigator.of(context).pop();
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => SpbPage()),
+                  MaterialPageRoute(builder: (context) => const SpbPage()),
                 );
               },
             ),
@@ -341,122 +342,239 @@ class _KendalaFormPageState extends State<KendalaFormPage>
     });
 
     try {
-      // Save to local storage first
-      await _saveToLocalStorage();
-      // Try to sync with server if connected
+      // Prepare data for saving
+      final data = {
+        'noSPB': widget.spb.noSpb,
+        'latitude': _currentPosition?.latitude.toString() ?? "0.0",
+        'longitude': _currentPosition?.longitude.toString() ?? "0.0",
+        'createdBy': widget.spb.driver.toString(),
+        'status': "2", // Set status to indicate kendala/issue
+        'alasan': _kendalaController.text,
+        'isAnyHandlingEx': _isDriverOrVehicleChanged ? "1" : "0",
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+
       if (_isConnected) {
-        await _syncData();
+        // Online mode - send directly to API
+        await _saveDataToApi(data);
+      } else {
+        // Offline mode - save to local storage
+        await _saveDataToLocalStorage(data);
       }
-      // Show success message
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error saving data: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _saveDataToApi(Map<String, dynamic> data) async {
+    try {
+      // Set timeout for API request
+      final options = Options(
+        sendTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+      );
+
+      // Call API to adjust SPB
+      final response = await _dio.put(
+        ApiServiceEndpoints.AdjustSPBDriver,
+        data: data,
+        options: options,
+      );
+
+      if (response.statusCode == 200) {
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Kendala berhasil disimpan'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+
+          // Navigate back after successful save
+          Future.delayed(const Duration(seconds: 1), () {
+            if (mounted) {
+              Navigator.of(context).pop(true); // Return true to indicate success
+            }
+          });
+        }
+      } else {
+        throw Exception('Failed to save kendala: ${response.statusCode}');
+      }
+    } on DioException catch (e) {
+      // Handle Dio specific errors
+      String errorMessage;
+      
+      if (e.type == DioExceptionType.connectionTimeout || 
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = 'Koneksi timeout. Menyimpan data secara lokal.';
+        // Save to local storage as fallback
+        await _saveDataToLocalStorage(data);
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = 'Koneksi terputus. Data disimpan secara lokal.';
+        // Save to local storage as fallback
+        await _saveDataToLocalStorage(data);
+      } else {
+        errorMessage = 'Error API: ${e.message}';
+        if (e.response != null) {
+          errorMessage += ' (${e.response!.statusCode})';
+          if (e.response!.data != null) {
+            errorMessage += ': ${e.response!.data}';
+          }
+        }
+        setState(() {
+          _errorMessage = errorMessage;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      // Handle other errors
+      setState(() {
+        _errorMessage = 'Error menyimpan data: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _saveDataToLocalStorage(Map<String, dynamic> data) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final spbId = widget.spb.noSpb;
+      
+      // Save form data as JSON string
+      final formDataKey = 'kendala_form_data_$spbId';
+      await prefs.setString(formDataKey, jsonEncode(data));
+      
+      // Save checkbox state
+      await prefs.setBool(
+        'kendala_driver_changed_$spbId',
+        _isDriverOrVehicleChanged,
+      );
+
+      // Save kendala text
+      await prefs.setString('kendala_text_$spbId', _kendalaController.text);
+
+      // Save sync status
+      await prefs.setBool('kendala_synced_$spbId', false);
+      
+      // Keep track of pending forms
+      final pendingForms = prefs.getStringList('pending_kendala_forms') ?? [];
+      if (!pendingForms.contains(spbId)) {
+        pendingForms.add(spbId);
+        await prefs.setStringList('pending_kendala_forms', pendingForms);
+      }
+      
+      // Show success message with offline indicator
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Kendala berhasil disimpan'),
-            backgroundColor: Colors.green,
+            content: const Text('Kendala disimpan secara lokal. Akan disinkronkan saat online.'),
+            backgroundColor: Colors.orange,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
             margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 3),
           ),
         );
-        // Navigate back after successful save
-        Future.delayed(const Duration(seconds: 1), () {
+        
+        // Navigate back after successful local save
+        Future.delayed(const Duration(seconds: 2), () {
           if (mounted) {
             Navigator.of(context).pop(true); // Return true to indicate success
           }
         });
       }
+      
+      setState(() {
+        _isLoading = false;
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Error saving data: $e';
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _errorMessage = 'Error menyimpan data lokal: $e';
+        _isLoading = false;
+      });
     }
-  }
-
-  Future<void> _saveToLocalStorage() async {
-    final prefs = await SharedPreferences.getInstance();
-    final spbId = widget.spb.noSpb;
-
-    // Save checkbox state
-    await prefs.setBool(
-      'kendala_driver_changed_$spbId',
-      _isDriverOrVehicleChanged,
-    );
-
-    // Save kendala text
-    await prefs.setString('kendala_text_$spbId', _kendalaController.text);
-
-    // Save sync status
-    await prefs.setBool('kendala_synced_$spbId', false);
-
-    // Save timestamp
-    await prefs.setInt(
-      'kendala_timestamp_$spbId',
-      DateTime.now().millisecondsSinceEpoch,
-    );
   }
 
   Future<void> _syncData() async {
     try {
-      // Get current position if not already available
-      if (_currentPosition == null) {
-        try {
-          _currentPosition = await Geolocator.getCurrentPosition();
-        } catch (e) {
-          // Use default coordinates if location not available
-          _currentPosition = null;
+      final prefs = await SharedPreferences.getInstance();
+      final pendingForms = prefs.getStringList('pending_kendala_forms') ?? [];
+      
+      if (pendingForms.isEmpty) return;
+      
+      // Show syncing notification
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Menyinkronkan data kendala yang tertunda...'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      
+      // Track forms that were successfully synced
+      final List<String> syncedForms = [];
+      
+      for (final spbId in pendingForms) {
+        final formDataKey = 'kendala_form_data_$spbId';
+        final jsonData = prefs.getString(formDataKey);
+        
+        if (jsonData != null) {
+          try {
+            // Parse the stored JSON data
+            final data = jsonDecode(jsonData) as Map<String, dynamic>;
+            
+            // Call API
+            final response = await _dio.put(
+              ApiServiceEndpoints.AdjustSPBDriver,
+              data: data,
+            );
+            
+            if (response.statusCode == 200) {
+              // Mark as synced
+              await prefs.setBool('kendala_synced_$spbId', true);
+              syncedForms.add(spbId);
+            }
+          } catch (e) {
+            // Log error but continue with next item
+            print('Error syncing kendala form for SPB $spbId: $e');
+          }
         }
       }
-
-      // Use position or default to 0,0 if not available
-      final lat = _currentPosition?.latitude ?? 0.0;
-      final long = _currentPosition?.longitude ?? 0.0;
-
-      final String latitude = lat.toString();
-      final String longitude = long.toString();
-
-      final prefs = await SharedPreferences.getInstance();
-      final spbId = widget.spb.noSpb;
-      // Check if already synced
-      final isSynced = prefs.getBool('kendala_synced_$spbId') ?? false;
-      if (isSynced) return;
-
-      // Prepare data for API
-      final data = {
-        'noSPB': widget.spb.noSpb,
-        'latitude': latitude,
-        'longitude': longitude,
-        'createdBy': widget.spb.driver.toString(),
-        'status': "2", // Set status to indicate kendala/issue
-        'alasan': _kendalaController.text,
-        'isAnyHandlingEx': _isDriverOrVehicleChanged.toString(),
-      };
-
-      // Call API to update SPB status
-      final response = await _dio.put(
-        ApiServiceEndpoints.AdjustSPBDriver,
-        data: data,
-      );
-
-      if (response.statusCode == 200) {
-        // Mark as synced in local storage
-        await prefs.setBool('kendala_synced_$spbId', true);
-      } else {
-        throw Exception('Failed to sync data: ${response.statusCode}');
+      
+      // Remove successfully synced forms from pending list
+      if (syncedForms.isNotEmpty) {
+        final updatedPendingForms = pendingForms
+            .where((spbId) => !syncedForms.contains(spbId))
+            .toList();
+        await prefs.setStringList('pending_kendala_forms', updatedPendingForms);
+      }
+      
+      // Show completion notification
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(syncedForms.isEmpty 
+              ? 'Tidak ada data kendala yang berhasil disinkronkan' 
+              : '${syncedForms.length} data kendala berhasil disinkronkan'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
-      // Just log the error but don't throw - we'll try to sync again later
-      print('Sync error: $e');
-      // We don't set _errorMessage here as the local save was successful
+      print('Error syncing pending kendala data: $e');
     }
   }
 
