@@ -4,15 +4,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import '../pages/spb_page.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/config/api_endpoints.dart';
 import '../../data/models/spb_model.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../bloc/espb_form_bloc.dart';
-import '../widgets/espb_form_sync_indicator.dart';
 
 class KendalaFormPage extends StatefulWidget {
   final SpbModel spb;
@@ -137,9 +134,12 @@ class _KendalaFormPageState extends State<KendalaFormPage>
             TextButton(
               child: const Text('Batal'),
               onPressed: () {
+                // Navigator.of(context).pop();
+                // Navigator.of(context).pop(); // Go back to previous screen
+                // Navigate to Kendala Form page
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SpbPage()),
+                  MaterialPageRoute(builder: (context) => SpbPage()),
                 );
               },
             ),
@@ -182,9 +182,10 @@ class _KendalaFormPageState extends State<KendalaFormPage>
             TextButton(
               child: const Text('Batal'),
               onPressed: () {
+                // Navigator.of(context).pop();
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SpbPage()),
+                  MaterialPageRoute(builder: (context) => SpbPage()),
                 );
               },
             ),
@@ -223,9 +224,10 @@ class _KendalaFormPageState extends State<KendalaFormPage>
             TextButton(
               child: const Text('Batal'),
               onPressed: () {
+                // Navigator.of(context).pop();
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SpbPage()),
+                  MaterialPageRoute(builder: (context) => SpbPage()),
                 );
               },
             ),
@@ -267,6 +269,10 @@ class _KendalaFormPageState extends State<KendalaFormPage>
         setState(() {
           _isConnected = hasConnectivity;
         });
+        // If connection is restored, try to sync
+        if (hasConnectivity && !_isConnected) {
+          _syncData();
+        }
       }
     });
   }
@@ -335,6 +341,72 @@ class _KendalaFormPageState extends State<KendalaFormPage>
     });
 
     try {
+      // Save to local storage first
+      await _saveToLocalStorage();
+      // Try to sync with server if connected
+      if (_isConnected) {
+        await _syncData();
+      }
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Kendala berhasil disimpan'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+        // Navigate back after successful save
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            Navigator.of(context).pop(true); // Return true to indicate success
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Error saving data: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveToLocalStorage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final spbId = widget.spb.noSpb;
+
+    // Save checkbox state
+    await prefs.setBool(
+      'kendala_driver_changed_$spbId',
+      _isDriverOrVehicleChanged,
+    );
+
+    // Save kendala text
+    await prefs.setString('kendala_text_$spbId', _kendalaController.text);
+
+    // Save sync status
+    await prefs.setBool('kendala_synced_$spbId', false);
+
+    // Save timestamp
+    await prefs.setInt(
+      'kendala_timestamp_$spbId',
+      DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
+  Future<void> _syncData() async {
+    try {
       // Get current position if not already available
       if (_currentPosition == null) {
         try {
@@ -352,23 +424,39 @@ class _KendalaFormPageState extends State<KendalaFormPage>
       final String latitude = lat.toString();
       final String longitude = long.toString();
 
-      // Submit form data to BLoC
-      context.read<EspbFormBloc>().add(
-        EspbFormSubmitted(
-          spbNumber: widget.spb.noSpb,
-          status: "2", // Set status to indicate kendala/issue
-          createdBy: widget.spb.driver ?? '',
-          latitude: latitude,
-          longitude: longitude,
-          alasan: _kendalaController.text,
-          isAnyHandlingEx: _isDriverOrVehicleChanged,
-        ),
+      final prefs = await SharedPreferences.getInstance();
+      final spbId = widget.spb.noSpb;
+      // Check if already synced
+      final isSynced = prefs.getBool('kendala_synced_$spbId') ?? false;
+      if (isSynced) return;
+
+      // Prepare data for API
+      final data = {
+        'noSPB': widget.spb.noSpb,
+        'latitude': latitude,
+        'longitude': longitude,
+        'createdBy': widget.spb.driver.toString(),
+        'status': "2", // Set status to indicate kendala/issue
+        'alasan': _kendalaController.text,
+        'isAnyHandlingEx': _isDriverOrVehicleChanged.toString(),
+      };
+
+      // Call API to update SPB status
+      final response = await _dio.put(
+        ApiServiceEndpoints.AdjustSPBDriver,
+        data: data,
       );
+
+      if (response.statusCode == 200) {
+        // Mark as synced in local storage
+        await prefs.setBool('kendala_synced_$spbId', true);
+      } else {
+        throw Exception('Failed to sync data: ${response.statusCode}');
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Error saving data: $e';
-        _isLoading = false;
-      });
+      // Just log the error but don't throw - we'll try to sync again later
+      print('Sync error: $e');
+      // We don't set _errorMessage here as the local save was successful
     }
   }
 
@@ -432,144 +520,50 @@ class _KendalaFormPageState extends State<KendalaFormPage>
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => getIt<EspbFormBloc>(),
-      child: BlocListener<EspbFormBloc, EspbFormState>(
-        listener: (context, state) {
-          if (state is EspbFormSubmitting) {
-            setState(() {
-              _isLoading = true;
-            });
-          } else if (state is EspbFormSuccess) {
-            setState(() {
-              _isLoading = false;
-            });
-            
-            // Show success message
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.isSynced 
-                  ? 'Kendala berhasil disimpan dan disinkronkan' 
-                  : 'Kendala berhasil disimpan dan akan disinkronkan nanti'),
-                backgroundColor: Colors.green,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                margin: const EdgeInsets.all(16),
-              ),
-            );
-            
-            // Navigate back after successful save
-            Future.delayed(const Duration(seconds: 1), () {
-              if (mounted) {
-                Navigator.of(context).pop(true); // Return true to indicate success
-              }
-            });
-          } else if (state is EspbFormError) {
-            setState(() {
-              _isLoading = false;
-              _errorMessage = state.message;
-            });
-          }
-        },
-        child: Scaffold(
-          appBar: AppBar(
-            title: const Text('Form Keterangan Kendala'),
-            centerTitle: true,
-            elevation: 0,
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ),
-          body: FadeTransition(
-            opacity: _fadeAnimation,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: SafeArea(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Status indicators
-                        _buildStatusIndicators(),
-    
-                        const SizedBox(height: 16),
-    
-                        // SPB Info Card
-                        _buildSpbInfoCard(),
-    
-                        const SizedBox(height: 24),
-    
-                        // Kendala Form Card
-                        _buildKendalaFormCard(),
-    
-                        const SizedBox(height: 24),
-    
-                        // Submit Button
-                        BlocBuilder<EspbFormBloc, EspbFormState>(
-                          builder: (context, state) {
-                            return SizedBox(
-                              width: double.infinity,
-                              height: 56,
-                              child: ElevatedButton(
-                                onPressed: _isLoading || !_isGpsActive || state is EspbFormSubmitting
-                                    ? null
-                                    : _showConfirmationDialog,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppTheme.errorColor,
-                                  foregroundColor: Colors.white,
-                                  disabledBackgroundColor: Colors.grey.shade300,
-                                  elevation: 2,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                child:
-                                    _isLoading || state is EspbFormSubmitting
-                                        ? const SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                            color: Colors.white,
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                        : Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.report_problem_outlined,
-                                              color:
-                                                  _isDriverOrVehicleChanged && _isGpsActive
-                                                      ? Colors.white
-                                                      : Colors.grey.shade400,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              'Simpan Kendala',
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Form Keterangan Kendala'),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+        ),
+      ),
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: SlideTransition(
+          position: _slideAnimation,
+          child: SafeArea(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Status indicators
+                    _buildStatusIndicators(),
+
+                    const SizedBox(height: 16),
+
+                    // SPB Info Card
+                    _buildSpbInfoCard(),
+
+                    const SizedBox(height: 24),
+
+                    // Kendala Form Card
+                    _buildKendalaFormCard(),
+
+                    const SizedBox(height: 24),
+
+                    // Submit Button
+                    _buildSubmitButton(),
+                  ],
                 ),
               ),
             ),
@@ -922,6 +916,55 @@ class _KendalaFormPageState extends State<KendalaFormPage>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: ElevatedButton(
+        onPressed: _isLoading ? null : _showConfirmationDialog,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppTheme.errorColor,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.grey.shade300,
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child:
+            _isLoading
+                ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+                : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.report_problem_outlined,
+                      color:
+                          _isDriverOrVehicleChanged && _isGpsActive
+                              ? Colors.white
+                              : Colors.grey.shade400,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Simpan Kendala',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
       ),
     );
   }

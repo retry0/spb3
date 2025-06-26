@@ -7,7 +7,6 @@ import 'package:dio/dio.dart';
 import 'package:uuid/uuid.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:sqflite/sqflite.dart';
 
 import '../network/dio_client.dart';
 import '../storage/secure_storage.dart';
@@ -44,7 +43,6 @@ import '../../features/spb/domain/usecases/get_spb_for_driver_usecase.dart';
 import '../../features/spb/domain/usecases/sync_spb_data_usecase.dart';
 import '../../features/spb/domain/usecases/generate_spb_qr_code_usecase.dart';
 import '../../features/spb/presentation/bloc/spb_bloc.dart';
-import '../../features/spb/presentation/bloc/espb_form_bloc.dart';
 
 final getIt = GetIt.instance;
 
@@ -241,7 +239,4 @@ Future<void> configureDependencies() async {
       connectivity: getIt<Connectivity>(),
     ),
   );
-  
-  // ESPB Form BLoC
-  getIt.registerFactory(() => EspbFormBloc());
 }
