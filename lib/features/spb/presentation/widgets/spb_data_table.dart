@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
+import 'dart:async';
 
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../bloc/spb_bloc.dart';
@@ -12,8 +13,6 @@ import 'spb_qr_code_modal.dart';
 import '../pages/cek_espb_page.dart';
 import '../pages/kendala_form_page.dart';
 import '../../../../core/theme/app_theme.dart';
-// Add this import at the top of the file
-import 'dart:async';
 
 class SpbDataTable extends StatefulWidget {
   const SpbDataTable({super.key});
@@ -40,6 +39,11 @@ class _SpbDataTableState extends State<SpbDataTable>
 
   // Debounce timer for search
   Timer? _debounceTimer;
+
+  // Retry mechanism for sync
+  int _syncRetryCount = 0;
+  static const int _maxSyncRetries = 3;
+  Timer? _syncRetryTimer;
 
   @override
   void initState() {
@@ -71,6 +75,7 @@ class _SpbDataTableState extends State<SpbDataTable>
     _horizontalScrollController.dispose();
     _animationController.dispose();
     _debounceTimer?.cancel();
+    _syncRetryTimer?.cancel();
     super.dispose();
   }
 
@@ -122,6 +127,46 @@ class _SpbDataTableState extends State<SpbDataTable>
     );
   }
 
+  void _syncData() {
+    if (_driver != null && _kdVendor != null) {
+      _syncRetryCount = 0; // Reset retry count
+      context.read<SpbBloc>().add(
+        SpbSyncRequested(driver: _driver!, kdVendor: _kdVendor!),
+      );
+    }
+  }
+
+  void _retrySync() {
+    if (_syncRetryCount < _maxSyncRetries) {
+      _syncRetryCount++;
+      
+      // Exponential backoff for retries
+      final backoffDuration = Duration(seconds: 2 * _syncRetryCount);
+      
+      _syncRetryTimer?.cancel();
+      _syncRetryTimer = Timer(backoffDuration, () {
+        _syncData();
+      });
+      
+      // Show retry message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Retrying sync (${_syncRetryCount}/$_maxSyncRetries)...'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } else {
+      // Max retries reached
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Sync failed after multiple attempts. Please try again later.'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
@@ -151,6 +196,11 @@ class _SpbDataTableState extends State<SpbDataTable>
                 borderRadius: BorderRadius.circular(10),
               ),
               margin: const EdgeInsets.all(16),
+              action: SnackBarAction(
+                label: 'Retry',
+                onPressed: _retrySync,
+                textColor: Colors.white,
+              ),
             ),
           );
         }
@@ -623,15 +673,6 @@ class _SpbDataTableState extends State<SpbDataTable>
               const SizedBox(height: 12),
               Row(
                 children: [
-                  // Expanded(
-                  //   child: Text(
-                  //     'Total: ${spb.totBeratTaksasi ?? 'N/A'} Kg',
-                  //     style: TextStyle(
-                  //       fontWeight: FontWeight.w500,
-                  //       color: Theme.of(context).colorScheme.primary,
-                  //     ),
-                  //   ),
-                  // ),
                   if (isPending) ...[
                     _buildActionButton(
                       context,
