@@ -347,7 +347,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
         'createdBy': widget.spb.driver.toString(),
         'status': "2", // Set status to indicate kendala/issue
         'alasan': _kendalaController.text,
-        'isAnyHandlingEx': _isDriverOrVehicleChanged ? 1 : 0, // Use integer instead of string
+        'isAnyHandlingEx': _isDriverOrVehicleChanged ? "1" : "0", // Use string "1" or "0" instead of integer
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       };
 

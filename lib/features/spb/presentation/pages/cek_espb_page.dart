@@ -288,8 +288,8 @@ class _CekEspbPageState extends State<CekEspbPage>
         'createdBy': widget.spb.driver,
         'latitude': _currentPosition?.latitude.toString() ?? "0.0",
         'longitude': _currentPosition?.longitude.toString() ?? "0.0",
-        // Use integer 1 instead of string "1" for isAnyHandlingEx
-        'isAnyHandlingEx': 0, // Using integer 0 instead of string "0"
+        // Use string "0" for isAnyHandlingEx
+        'isAnyHandlingEx': "0",
       };
 
       if (_isConnected) {
