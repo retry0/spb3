@@ -345,10 +345,9 @@ class _KendalaFormPageState extends State<KendalaFormPage>
         'latitude': _currentPosition?.latitude.toString() ?? "0.0",
         'longitude': _currentPosition?.longitude.toString() ?? "0.0",
         'createdBy': widget.spb.driver.toString(),
-        //'status': "2", // Set status to indicate kendala/issue
+        'status': "2", // Set status to indicate kendala/issue
         'alasan': _kendalaController.text,
-        'isAnyHandlingEx': "True", // Use string "1" or "0" instead of integer
-        //'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'isAnyHandlingEx': _isDriverOrVehicleChanged ? "1" : "0", // Use string "1" or "0" instead of boolean
       };
 
       // Save to sync service

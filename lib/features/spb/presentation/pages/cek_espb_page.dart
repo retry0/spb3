@@ -329,6 +329,7 @@ class _CekEspbPageState extends State<CekEspbPage>
         'createdBy': widget.spb.driver.toString(),
         'latitude': _currentPosition?.latitude.toString() ?? "0.0",
         'longitude': _currentPosition?.longitude.toString() ?? "0.0",
+        'isAnyHandlingEx': "0", // Use string "0" instead of integer 0
       };
 
       // Save to sync service
