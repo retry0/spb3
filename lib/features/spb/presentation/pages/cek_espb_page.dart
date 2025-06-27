@@ -289,6 +289,7 @@ class _CekEspbPageState extends State<CekEspbPage>
         'createdBy': widget.spb.driver.toString(),
         'latitude': _currentPosition?.latitude.toString() ?? "0.0",
         'longitude': _currentPosition?.longitude.toString() ?? "0.0",
+        'isAnyHandlingEx': "0", // Use string "0" instead of integer 0
       };
 
       if (_isConnected) {
@@ -381,7 +382,7 @@ class _CekEspbPageState extends State<CekEspbPage>
 
       // Create a unique key for this SPB
       final spbKey = 'pending_spb_${widget.spb.noSpb}';
-      Print('dadadad ${data}');
+      print('dadadad ${data}');
       // Add timestamp for syncing order
       data['timestamp'] = DateTime.now().millisecondsSinceEpoch;
 
