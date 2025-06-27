@@ -120,6 +120,54 @@ class _KendalaFormPageState extends State<KendalaFormPage>
     }
   }
 
+  Future<void> _checkConnectivity() async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    setState(() {
+      _isConnected =
+          connectivityResult.isNotEmpty &&
+          !connectivityResult.contains(ConnectivityResult.none);
+    });
+
+    // Listen for connectivity changes
+    Connectivity().onConnectivityChanged.listen((result) {
+      final hasConnectivity =
+          result.isNotEmpty && !result.contains(ConnectivityResult.none);
+
+      if (mounted) {
+        setState(() {
+          _isConnected = hasConnectivity;
+        });
+      }
+    });
+  }
+
+  Future<void> _loadSavedData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final spbId = widget.spb.noSpb;
+
+      // Load checkbox state
+      final isDriverOrVehicleChanged =
+          prefs.getBool('kendala_driver_changed_$spbId') ?? false;
+
+      // Load kendala text
+      final kendalaText = prefs.getString('kendala_text_$spbId') ?? '';
+
+      if (mounted) {
+        setState(() {
+          _isDriverOrVehicleChanged = isDriverOrVehicleChanged;
+          _kendalaController.text = kendalaText;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load saved data: $e';
+        });
+      }
+    }
+  }
+
   void _showLocationServicesDisabledDialog() {
     showDialog(
       context: context,
@@ -254,54 +302,6 @@ class _KendalaFormPageState extends State<KendalaFormPage>
     );
   }
 
-  Future<void> _checkConnectivity() async {
-    final connectivityResult = await Connectivity().checkConnectivity();
-    setState(() {
-      _isConnected =
-          connectivityResult.isNotEmpty &&
-          !connectivityResult.contains(ConnectivityResult.none);
-    });
-
-    // Listen for connectivity changes
-    Connectivity().onConnectivityChanged.listen((result) {
-      final hasConnectivity =
-          result.isNotEmpty && !result.contains(ConnectivityResult.none);
-
-      if (mounted) {
-        setState(() {
-          _isConnected = hasConnectivity;
-        });
-      }
-    });
-  }
-
-  Future<void> _loadSavedData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final spbId = widget.spb.noSpb;
-
-      // Load checkbox state
-      final isDriverOrVehicleChanged =
-          prefs.getBool('kendala_driver_changed_$spbId') ?? false;
-
-      // Load kendala text
-      final kendalaText = prefs.getString('kendala_text_$spbId') ?? '';
-
-      if (mounted) {
-        setState(() {
-          _isDriverOrVehicleChanged = isDriverOrVehicleChanged;
-          _kendalaController.text = kendalaText;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Failed to load saved data: $e';
-        });
-      }
-    }
-  }
-
   Future<void> _saveData() async {
     // Validate form
     if (!_formKey.currentState!.validate()) {
@@ -345,10 +345,10 @@ class _KendalaFormPageState extends State<KendalaFormPage>
         'latitude': _currentPosition?.latitude.toString() ?? "0.0",
         'longitude': _currentPosition?.longitude.toString() ?? "0.0",
         'createdBy': widget.spb.driver.toString(),
-        'status': "2", // Set status to indicate kendala/issue
+        //'status': "2", // Set status to indicate kendala/issue
         'alasan': _kendalaController.text,
-        'isAnyHandlingEx': _isDriverOrVehicleChanged ? "1" : "0",
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'isAnyHandlingEx': "True", // Use string "1" or "0" instead of integer
+        //'timestamp': DateTime.now().millisecondsSinceEpoch,
       };
 
       // Save to sync service
@@ -370,13 +370,15 @@ class _KendalaFormPageState extends State<KendalaFormPage>
       if (_isConnected) {
         // Try to sync immediately if online
         final syncResult = await _syncService.syncForm(widget.spb.noSpb);
-        
+
         if (syncResult) {
           // Show success message
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: const Text('Kendala berhasil disimpan dan disinkronkan'),
+                content: const Text(
+                  'Kendala berhasil disimpan dan disinkronkan',
+                ),
                 backgroundColor: Colors.green,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
@@ -391,7 +393,9 @@ class _KendalaFormPageState extends State<KendalaFormPage>
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: const Text('Kendala disimpan tetapi gagal disinkronkan. Akan dicoba lagi nanti.'),
+                content: const Text(
+                  'Kendala disimpan tetapi gagal disinkronkan. Akan dicoba lagi nanti.',
+                ),
                 backgroundColor: Colors.orange,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
@@ -407,7 +411,9 @@ class _KendalaFormPageState extends State<KendalaFormPage>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Kendala disimpan secara lokal. Akan disinkronkan saat online.'),
+              content: const Text(
+                'Kendala disimpan secara lokal. Akan disinkronkan saat online.',
+              ),
               backgroundColor: Colors.orange,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(

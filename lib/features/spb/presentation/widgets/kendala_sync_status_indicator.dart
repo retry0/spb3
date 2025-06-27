@@ -10,13 +10,13 @@ class KendalaSyncStatusIndicator extends StatefulWidget {
   /// The SPB number to check sync status for
   /// If null, shows overall sync status
   final String? spbNumber;
-  
+
   /// Whether to show a compact version of the indicator
   final bool compact;
-  
+
   /// Callback when retry is pressed
   final VoidCallback? onRetry;
-  
+
   const KendalaSyncStatusIndicator({
     super.key,
     this.spbNumber,
@@ -25,29 +25,31 @@ class KendalaSyncStatusIndicator extends StatefulWidget {
   });
 
   @override
-  State<KendalaSyncStatusIndicator> createState() => _KendalaSyncStatusIndicatorState();
+  State<KendalaSyncStatusIndicator> createState() =>
+      _KendalaSyncStatusIndicatorState();
 }
 
-class _KendalaSyncStatusIndicatorState extends State<KendalaSyncStatusIndicator> {
+class _KendalaSyncStatusIndicatorState
+    extends State<KendalaSyncStatusIndicator> {
   final KendalaFormSyncService _syncService = getIt<KendalaFormSyncService>();
   bool _isSynced = false;
   bool _isLoading = true;
-  
+
   @override
   void initState() {
     super.initState();
     _checkSyncStatus();
   }
-  
+
   Future<void> _checkSyncStatus() async {
     setState(() {
       _isLoading = true;
     });
-    
+
     if (widget.spbNumber != null) {
       // Check specific form sync status
       final isSynced = await _syncService.isFormSynced(widget.spbNumber!);
-      
+
       if (mounted) {
         setState(() {
           _isSynced = isSynced;
@@ -57,7 +59,7 @@ class _KendalaSyncStatusIndicatorState extends State<KendalaSyncStatusIndicator>
     } else {
       // Check overall sync status
       final stats = await _syncService.getSyncStats();
-      
+
       if (mounted) {
         setState(() {
           _isSynced = stats.pendingForms == 0;
@@ -66,7 +68,7 @@ class _KendalaSyncStatusIndicatorState extends State<KendalaSyncStatusIndicator>
       }
     }
   }
-  
+
   void _handleRetry() {
     if (widget.onRetry != null) {
       widget.onRetry!();
@@ -82,13 +84,13 @@ class _KendalaSyncStatusIndicatorState extends State<KendalaSyncStatusIndicator>
       }
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return widget.compact ? _buildCompactLoading() : _buildFullLoading();
     }
-    
+
     return ValueListenableBuilder<SyncStatus>(
       valueListenable: _syncService.syncStatusNotifier,
       builder: (context, syncStatus, _) {
@@ -101,11 +103,20 @@ class _KendalaSyncStatusIndicatorState extends State<KendalaSyncStatusIndicator>
                 // Determine current status
                 final bool isSyncing = syncStatus == SyncStatus.syncing;
                 final bool hasError = errorMessage != null && !_isSynced;
-                
+
                 if (widget.compact) {
-                  return _buildCompactIndicator(isSyncing, hasError, lastSyncTime);
+                  return _buildCompactIndicator(
+                    isSyncing,
+                    hasError,
+                    lastSyncTime,
+                  );
                 } else {
-                  return _buildFullIndicator(isSyncing, hasError, errorMessage, lastSyncTime);
+                  return _buildFullIndicator(
+                    isSyncing,
+                    hasError,
+                    errorMessage,
+                    lastSyncTime,
+                  );
                 }
               },
             );
@@ -114,7 +125,7 @@ class _KendalaSyncStatusIndicatorState extends State<KendalaSyncStatusIndicator>
       },
     );
   }
-  
+
   Widget _buildCompactLoading() {
     return const SizedBox(
       height: 20,
@@ -127,7 +138,7 @@ class _KendalaSyncStatusIndicatorState extends State<KendalaSyncStatusIndicator>
       ),
     );
   }
-  
+
   Widget _buildFullLoading() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -149,12 +160,16 @@ class _KendalaSyncStatusIndicatorState extends State<KendalaSyncStatusIndicator>
       ),
     );
   }
-  
-  Widget _buildCompactIndicator(bool isSyncing, bool hasError, DateTime? lastSyncTime) {
+
+  Widget _buildCompactIndicator(
+    bool isSyncing,
+    bool hasError,
+    DateTime? lastSyncTime,
+  ) {
     IconData icon;
     Color color;
     String text;
-    
+
     if (isSyncing) {
       icon = Icons.sync;
       color = AppTheme.infoColor;
@@ -172,35 +187,37 @@ class _KendalaSyncStatusIndicatorState extends State<KendalaSyncStatusIndicator>
       color = AppTheme.warningColor;
       text = 'Not synced';
     }
-    
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         isSyncing
             ? SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(color),
-                ),
-              )
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              ),
+            )
             : Icon(icon, size: 16, color: color),
         const SizedBox(width: 4),
-        Text(
-          text,
-          style: TextStyle(fontSize: 12, color: color),
-        ),
+        Text(text, style: TextStyle(fontSize: 12, color: color)),
       ],
     );
   }
-  
-  Widget _buildFullIndicator(bool isSyncing, bool hasError, String? errorMessage, DateTime? lastSyncTime) {
+
+  Widget _buildFullIndicator(
+    bool isSyncing,
+    bool hasError,
+    String? errorMessage,
+    DateTime? lastSyncTime,
+  ) {
     IconData icon;
     Color color;
     String title;
     String message;
-    
+
     if (isSyncing) {
       icon = Icons.sync;
       color = AppTheme.infoColor;
@@ -222,7 +239,7 @@ class _KendalaSyncStatusIndicatorState extends State<KendalaSyncStatusIndicator>
       title = 'Not Synced';
       message = 'Data is stored locally and will be synced when online';
     }
-    
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -234,13 +251,13 @@ class _KendalaSyncStatusIndicatorState extends State<KendalaSyncStatusIndicator>
         children: [
           isSyncing
               ? SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(color),
-                  ),
-                )
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                ),
+              )
               : Icon(icon, color: color, size: 24),
           const SizedBox(width: 12),
           Expanded(
@@ -249,18 +266,12 @@ class _KendalaSyncStatusIndicatorState extends State<KendalaSyncStatusIndicator>
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: color),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   message,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: color.withOpacity(0.8),
-                  ),
+                  style: TextStyle(fontSize: 12, color: color.withOpacity(0.8)),
                 ),
                 if (lastSyncTime != null && !isSyncing) ...[
                   const SizedBox(height: 4),
@@ -282,7 +293,10 @@ class _KendalaSyncStatusIndicatorState extends State<KendalaSyncStatusIndicator>
               label: const Text('Retry'),
               style: TextButton.styleFrom(
                 foregroundColor: color,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 minimumSize: const Size(0, 36),
               ),
             ),

@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 import '../../../../core/di/injection.dart';
 import '../../data/models/spb_model.dart';
@@ -61,24 +62,20 @@ class _CekEspbPageState extends State<CekEspbPage>
   Future<void> _checkConnectivity() async {
     final connectivityResult = await _connectivity.checkConnectivity();
     setState(() {
-      _isConnected = connectivityResult.isNotEmpty && 
-                     !connectivityResult.contains(ConnectivityResult.none);
+      _isConnected =
+          connectivityResult.isNotEmpty &&
+          !connectivityResult.contains(ConnectivityResult.none);
     });
 
     // Listen for connectivity changes
     _connectivity.onConnectivityChanged.listen((result) {
-      final hasConnectivity = result.isNotEmpty && 
-                             !result.contains(ConnectivityResult.none);
-      
+      final hasConnectivity =
+          result.isNotEmpty && !result.contains(ConnectivityResult.none);
+
       if (mounted) {
         setState(() {
           _isConnected = hasConnectivity;
         });
-        
-        // If connection is restored, try to sync pending data
-        if (hasConnectivity && !_isConnected) {
-          _syncPendingData();
-        }
       }
     });
   }
@@ -278,7 +275,7 @@ class _CekEspbPageState extends State<CekEspbPage>
         return;
       }
     }
-    
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -292,89 +289,84 @@ class _CekEspbPageState extends State<CekEspbPage>
         'createdBy': widget.spb.driver,
         'latitude': _currentPosition?.latitude.toString() ?? "0.0",
         'longitude': _currentPosition?.longitude.toString() ?? "0.0",
+        // Use string "0" for isAnyHandlingEx
+        'isAnyHandlingEx': "0",
       };
 
       if (_isConnected) {
         // Online mode - send directly to API
-        await _saveDataToApi(data);
+        try {
+          // Set timeout for API request
+          final options = Options(
+            sendTimeout: const Duration(seconds: 30),
+            receiveTimeout: const Duration(seconds: 30),
+          );
+
+          // Call API to accept SPB
+          final response = await _dio.put(
+            ApiServiceEndpoints.AcceptSPBDriver,
+            data: data,
+            options: options,
+          );
+
+          if (response.statusCode == 200) {
+            // Show success message
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('SPB berhasil diterima'),
+                  backgroundColor: Colors.green,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  margin: const EdgeInsets.all(16),
+                ),
+              );
+
+              // Navigate back after successful acceptance
+              Future.delayed(const Duration(seconds: 1), () {
+                if (mounted) {
+                  Navigator.of(
+                    context,
+                  ).pop(true); // Return true to indicate success
+                }
+              });
+            }
+          } else {
+            throw Exception('Failed to accept SPB: ${response.statusCode}');
+          }
+        } on DioException catch (e) {
+          // Handle Dio specific errors
+          String errorMessage;
+
+          if (e.type == DioExceptionType.connectionTimeout ||
+              e.type == DioExceptionType.sendTimeout ||
+              e.type == DioExceptionType.receiveTimeout) {
+            errorMessage = 'Koneksi timeout. Silakan coba lagi.';
+            // Save to local storage as fallback
+            await _saveDataToLocalStorage(data);
+          } else if (e.type == DioExceptionType.connectionError) {
+            errorMessage = 'Koneksi terputus. Data disimpan secara lokal.';
+            // Save to local storage as fallback
+            await _saveDataToLocalStorage(data);
+          } else {
+            errorMessage = 'Error API: ${e.message}';
+            if (e.response != null) {
+              errorMessage += ' (${e.response!.statusCode})';
+              if (e.response!.data != null) {
+                errorMessage += ': ${e.response!.data}';
+              }
+            }
+            setState(() {
+              _errorMessage = errorMessage;
+              _isLoading = false;
+            });
+          }
+        }
       } else {
         // Offline mode - save to local storage
         await _saveDataToLocalStorage(data);
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Error saving data: $e';
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _saveDataToApi(Map<String, dynamic> data) async {
-    try {
-      // Set timeout for API request
-      final options = Options(
-        sendTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-      );
-
-      // Call API to accept SPB
-      final response = await _dio.put(
-        ApiServiceEndpoints.AcceptSPBDriver,
-        data: data,
-        options: options,
-      );
-
-      if (response.statusCode == 200) {
-        // Show success message
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('SPB berhasil diterima'),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              margin: const EdgeInsets.all(16),
-            ),
-          );
-
-          // Navigate back after successful acceptance
-          Future.delayed(const Duration(seconds: 1), () {
-            if (mounted) {
-              Navigator.of(context).pop(true); // Return true to indicate success
-            }
-          });
-        }
-      } else {
-        throw Exception('Failed to accept SPB: ${response.statusCode}');
-      }
-    } on DioException catch (e) {
-      // Handle Dio specific errors
-      String errorMessage;
-      
-      if (e.type == DioExceptionType.connectionTimeout || 
-          e.type == DioExceptionType.sendTimeout ||
-          e.type == DioExceptionType.receiveTimeout) {
-        errorMessage = 'Koneksi timeout. Silakan coba lagi.';
-        // Save to local storage as fallback
-        await _saveDataToLocalStorage(data);
-      } else if (e.type == DioExceptionType.connectionError) {
-        errorMessage = 'Koneksi terputus. Data disimpan secara lokal.';
-        // Save to local storage as fallback
-        await _saveDataToLocalStorage(data);
-      } else {
-        errorMessage = 'Error API: ${e.message}';
-        if (e.response != null) {
-          errorMessage += ' (${e.response!.statusCode})';
-          if (e.response!.data != null) {
-            errorMessage += ': ${e.response!.data}';
-          }
-        }
-        setState(() {
-          _errorMessage = errorMessage;
-          _isLoading = false;
-        });
       }
     } catch (e) {
       // Handle other errors
@@ -388,28 +380,30 @@ class _CekEspbPageState extends State<CekEspbPage>
   Future<void> _saveDataToLocalStorage(Map<String, dynamic> data) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Create a unique key for this SPB
       final spbKey = 'pending_spb_${widget.spb.noSpb}';
-      
+
       // Add timestamp for syncing order
       data['timestamp'] = DateTime.now().millisecondsSinceEpoch;
-      
+
       // Save data as JSON string
       await prefs.setString(spbKey, jsonEncode(data));
-      
+
       // Keep track of pending SPBs
       final pendingSpbs = prefs.getStringList('pending_spbs') ?? [];
       if (!pendingSpbs.contains(widget.spb.noSpb)) {
         pendingSpbs.add(widget.spb.noSpb);
         await prefs.setStringList('pending_spbs', pendingSpbs);
       }
-      
+
       // Show success message with offline indicator
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('SPB disimpan secara lokal. Akan disinkronkan saat online.'),
+            content: const Text(
+              'SPB disimpan secara lokal. Akan disinkronkan saat online.',
+            ),
             backgroundColor: Colors.orange,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -419,7 +413,7 @@ class _CekEspbPageState extends State<CekEspbPage>
             duration: const Duration(seconds: 3),
           ),
         );
-        
+
         // Navigate back after successful local save
         Future.delayed(const Duration(seconds: 2), () {
           if (mounted) {
@@ -427,7 +421,7 @@ class _CekEspbPageState extends State<CekEspbPage>
           }
         });
       }
-      
+
       setState(() {
         _isLoading = false;
       });
@@ -443,9 +437,9 @@ class _CekEspbPageState extends State<CekEspbPage>
     try {
       final prefs = await SharedPreferences.getInstance();
       final pendingSpbs = prefs.getStringList('pending_spbs') ?? [];
-      
+
       if (pendingSpbs.isEmpty) return;
-      
+
       // Show syncing notification
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -455,21 +449,21 @@ class _CekEspbPageState extends State<CekEspbPage>
           ),
         );
       }
-      
+
       for (final spbId in pendingSpbs) {
         final spbKey = 'pending_spb_$spbId';
         final jsonData = prefs.getString(spbKey);
-        
+
         if (jsonData != null) {
           try {
             final data = jsonDecode(jsonData);
-            
+
             // Call API
             final response = await _dio.put(
               ApiServiceEndpoints.AcceptSPBDriver,
               data: data,
             );
-            
+
             if (response.statusCode == 200) {
               // Remove from pending list on success
               await prefs.remove(spbKey);
@@ -481,17 +475,19 @@ class _CekEspbPageState extends State<CekEspbPage>
           }
         }
       }
-      
+
       // Update pending list
       await prefs.setStringList('pending_spbs', pendingSpbs);
-      
+
       // Show completion notification
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(pendingSpbs.isEmpty 
-              ? 'Semua data berhasil disinkronkan' 
-              : 'Beberapa data gagal disinkronkan dan akan dicoba lagi nanti'),
+            content: Text(
+              pendingSpbs.isEmpty
+                  ? 'Semua data berhasil disinkronkan'
+                  : 'Beberapa data gagal disinkronkan dan akan dicoba lagi nanti',
+            ),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -499,31 +495,6 @@ class _CekEspbPageState extends State<CekEspbPage>
     } catch (e) {
       print('Error syncing pending data: $e');
     }
-  }
-
-  String _mapToJsonString(Map<String, dynamic> data) {
-    return data.entries
-        .map((e) => '"${e.key}":"${e.value}"')
-        .join(',')
-        .replaceAll('{', '')
-        .replaceAll('}', '');
-  }
-
-  Map<String, dynamic> _jsonStringToMap(String jsonString) {
-    // Simple conversion for our specific case
-    final map = <String, dynamic>{};
-    final pairs = jsonString.split(',');
-    
-    for (final pair in pairs) {
-      final keyValue = pair.split(':');
-      if (keyValue.length == 2) {
-        final key = keyValue[0].replaceAll('"', '').trim();
-        final value = keyValue[1].replaceAll('"', '').trim();
-        map[key] = value;
-      }
-    }
-    
-    return map;
   }
 
   void _showAcceptConfirmationDialog() {
@@ -600,7 +571,8 @@ class _CekEspbPageState extends State<CekEspbPage>
                   _buildStatusCard(
                     icon: Icons.wifi_off,
                     title: 'Mode Offline',
-                    message: 'Anda sedang offline. Data akan disimpan lokal dan disinkronkan saat online.',
+                    message:
+                        'Anda sedang offline. Data akan disimpan lokal dan disinkronkan saat online.',
                     color: Colors.orange,
                   ),
 

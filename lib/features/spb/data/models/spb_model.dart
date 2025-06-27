@@ -9,15 +9,15 @@ class SpbModel extends Equatable {
   final String tglAntarBuah;
   final String millTujuan;
   final String status;
-  final String? keterangan;
-  final String? kodeVendor;
-  final String? driver;
-  final String? noPolisi;
-  final String? jumJjg; // Changed from int? to String?
-  final String? brondolan; // Changed from int? to String?
-  final String? totBeratTaksasi; // Changed from double? to String?
-  final String? driverName;
-  final String? millTujuanName;
+  final String keterangan;
+  final String kodeVendor;
+  final String driver;
+  final String noPolisi;
+  final String jumJjg; // Changed from int? to String?
+  final String brondolan; // Changed from int? to String?
+  final String totBeratTaksasi; // Changed from double? to String?
+  final String driverName;
+  final String millTujuanName;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final bool isSynced;
@@ -27,15 +27,15 @@ class SpbModel extends Equatable {
     required this.tglAntarBuah,
     required this.millTujuan,
     required this.status,
-    this.keterangan,
-    this.kodeVendor,
-    this.driver,
-    this.noPolisi,
-    this.jumJjg,
-    this.brondolan,
-    this.totBeratTaksasi,
-    this.driverName,
-    this.millTujuanName,
+    required this.keterangan,
+    required this.kodeVendor,
+    required this.driver,
+    required this.noPolisi,
+    required this.jumJjg,
+    required this.brondolan,
+    required this.totBeratTaksasi,
+    required this.driverName,
+    required this.millTujuanName,
     this.createdAt,
     this.updatedAt,
     this.isSynced = true,
@@ -43,19 +43,19 @@ class SpbModel extends Equatable {
 
   factory SpbModel.fromJson(Map<String, dynamic> json) {
     return SpbModel(
-      noSpb: json['noSpb'] as String,
+      noSpb: json['noSpb'].toString(),
       tglAntarBuah: json['tglAntarBuah'] as String,
-      millTujuan: json['millTujuan'] as String,
-      status: json['status'] as String,
-      keterangan: json['keterangan'] as String?,
-      kodeVendor: json['kodeVendor'] as String?,
-      driver: json['driver'] as String?,
-      noPolisi: json['noPolisi'] as String?,
-      jumJjg: json['jumJjg']?.toString(), // Convert to String
-      brondolan: json['brondolan']?.toString(), // Convert to String
-      totBeratTaksasi: json['totBeratTaksasi']?.toString(), // Convert to String
-      driverName: json['driverName'] as String?,
-      millTujuanName: json['millTujuanName'] as String?,
+      millTujuan: json['millTujuan'].toString(),
+      status: json['status'].toString(),
+      keterangan: json['keterangan'].toString(),
+      kodeVendor: json['kodeVendor'].toString(),
+      driver: json['driver'].toString(),
+      noPolisi: json['noPolisi'].toString(),
+      jumJjg: json['jumJjg'].toString(), // Convert to String
+      brondolan: json['brondolan'].toString(), // Convert to String
+      totBeratTaksasi: json['totBeratTaksasi'].toString(), // Convert to String
+      driverName: json['driverName'].toString(),
+      millTujuanName: json['millTujuanName'].toString(),
       createdAt:
           json['createdAt'] == null
               ? null
@@ -94,16 +94,15 @@ class SpbModel extends Equatable {
       tglAntarBuah: map['tgl_antar_buah'] as String,
       millTujuan: map['mill_tujuan'] as String,
       status: map['status'] as String,
-      keterangan: map['keterangan'] as String?,
-      kodeVendor: map['kode_vendor'] as String?,
-      driver: map['driver'] as String?,
-      noPolisi: map['no_polisi'] as String?,
-      jumJjg: map['jum_jjg']?.toString(), // Convert to String
-      brondolan: map['brondolan']?.toString(), // Convert to String
-      totBeratTaksasi:
-          map['tot_berat_taksasi']?.toString(), // Convert to String
-      driverName: map['driverName'] as String?,
-      millTujuanName: map['millTujuanName'] as String?,
+      keterangan: map['keterangan'].toString(),
+      kodeVendor: map['kode_vendor'].toString(),
+      driver: map['driver'].toString(),
+      noPolisi: map['no_polisi'].toString(),
+      jumJjg: map['jum_jjg'].toString(), // Convert to String
+      brondolan: map['brondolan'].toString(), // Convert to String
+      totBeratTaksasi: map['tot_berat_taksasi'].toString(), // Convert to String
+      driverName: map['driverName'].toString(),
+      millTujuanName: map['millTujuanName'].toString(),
       createdAt:
           map['created_at'] != null
               ? DateTime.fromMillisecondsSinceEpoch(map['created_at'] * 1000)
