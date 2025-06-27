@@ -29,11 +29,11 @@ class LocalStorageImpl implements LocalStorage {
     try {
       // Store in both SharedPreferences (for quick access) and SQLite (for persistence)
       await _prefs.setString(key, value);
-      await _dbHelper.insert('settings', {
-        'key': key,
-        'value': value,
-        'type': 'string',
-      });
+      // await _dbHelper.insert('settings', {
+      //   'key': key,
+      //   'value': value,
+      //   'type': 'string',
+      // });
     } catch (e) {
       AppLogger.error('Failed to set string for key: $key', e);
       // Fallback to SharedPreferences only
@@ -46,7 +46,7 @@ class LocalStorageImpl implements LocalStorage {
     try {
       // Try SharedPreferences first for speed
       String? value = _prefs.getString(key);
-      
+
       if (value == null) {
         // Fallback to SQLite
         final results = await _dbHelper.query(
@@ -55,7 +55,7 @@ class LocalStorageImpl implements LocalStorage {
           whereArgs: [key, 'string'],
           limit: 1,
         );
-        
+
         if (results.isNotEmpty) {
           value = results.first['value'] as String?;
           // Cache in SharedPreferences for next time
@@ -64,7 +64,7 @@ class LocalStorageImpl implements LocalStorage {
           }
         }
       }
-      
+
       return value;
     } catch (e) {
       AppLogger.error('Failed to get string for key: $key', e);
@@ -91,7 +91,7 @@ class LocalStorageImpl implements LocalStorage {
   Future<bool?> getBool(String key) async {
     try {
       bool? value = _prefs.getBool(key);
-      
+
       if (value == null) {
         final results = await _dbHelper.query(
           'settings',
@@ -99,7 +99,7 @@ class LocalStorageImpl implements LocalStorage {
           whereArgs: [key, 'bool'],
           limit: 1,
         );
-        
+
         if (results.isNotEmpty) {
           final stringValue = results.first['value'] as String?;
           if (stringValue != null) {
@@ -108,7 +108,7 @@ class LocalStorageImpl implements LocalStorage {
           }
         }
       }
-      
+
       return value;
     } catch (e) {
       AppLogger.error('Failed to get bool for key: $key', e);
@@ -135,7 +135,7 @@ class LocalStorageImpl implements LocalStorage {
   Future<int?> getInt(String key) async {
     try {
       int? value = _prefs.getInt(key);
-      
+
       if (value == null) {
         final results = await _dbHelper.query(
           'settings',
@@ -143,7 +143,7 @@ class LocalStorageImpl implements LocalStorage {
           whereArgs: [key, 'int'],
           limit: 1,
         );
-        
+
         if (results.isNotEmpty) {
           final stringValue = results.first['value'] as String?;
           if (stringValue != null) {
@@ -154,7 +154,7 @@ class LocalStorageImpl implements LocalStorage {
           }
         }
       }
-      
+
       return value;
     } catch (e) {
       AppLogger.error('Failed to get int for key: $key', e);
@@ -181,7 +181,7 @@ class LocalStorageImpl implements LocalStorage {
   Future<double?> getDouble(String key) async {
     try {
       double? value = _prefs.getDouble(key);
-      
+
       if (value == null) {
         final results = await _dbHelper.query(
           'settings',
@@ -189,7 +189,7 @@ class LocalStorageImpl implements LocalStorage {
           whereArgs: [key, 'double'],
           limit: 1,
         );
-        
+
         if (results.isNotEmpty) {
           final stringValue = results.first['value'] as String?;
           if (stringValue != null) {
@@ -200,7 +200,7 @@ class LocalStorageImpl implements LocalStorage {
           }
         }
       }
-      
+
       return value;
     } catch (e) {
       AppLogger.error('Failed to get double for key: $key', e);
@@ -227,7 +227,7 @@ class LocalStorageImpl implements LocalStorage {
   Future<List<String>?> getStringList(String key) async {
     try {
       List<String>? value = _prefs.getStringList(key);
-      
+
       if (value == null) {
         final results = await _dbHelper.query(
           'settings',
@@ -235,7 +235,7 @@ class LocalStorageImpl implements LocalStorage {
           whereArgs: [key, 'string_list'],
           limit: 1,
         );
-        
+
         if (results.isNotEmpty) {
           final stringValue = results.first['value'] as String?;
           if (stringValue != null && stringValue.isNotEmpty) {
@@ -244,7 +244,7 @@ class LocalStorageImpl implements LocalStorage {
           }
         }
       }
-      
+
       return value;
     } catch (e) {
       AppLogger.error('Failed to get string list for key: $key', e);
