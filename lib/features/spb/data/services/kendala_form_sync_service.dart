@@ -41,7 +41,7 @@ class KendalaFormSyncService {
     // Initialize connectivity monitoring
     _initConnectivityMonitoring();
     
-    // Start background sync timer (every 15 minutes)
+    // Start background sync timer
     _startBackgroundSync();
   }
   
@@ -393,13 +393,13 @@ class SyncStats {
   final int totalForms;
   final int syncedForms;
   final int pendingForms;
-  final int failedForms;
+  final int failedCount;
   
   SyncStats({
     required this.totalForms,
     required this.syncedForms,
     required this.pendingForms,
-    required this.failedForms,
+    required this.failedCount,
   });
   
   double get syncPercentage => 

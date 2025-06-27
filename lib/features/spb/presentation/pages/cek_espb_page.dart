@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 import '../../../../core/di/injection.dart';
 import '../../data/models/spb_model.dart';
@@ -287,6 +288,8 @@ class _CekEspbPageState extends State<CekEspbPage>
         'createdBy': widget.spb.driver,
         'latitude': _currentPosition?.latitude.toString() ?? "0.0",
         'longitude': _currentPosition?.longitude.toString() ?? "0.0",
+        // Use integer 1 instead of string "1" for isAnyHandlingEx
+        'isAnyHandlingEx': 0, // Using integer 0 instead of string "0"
       };
 
       if (_isConnected) {
