@@ -44,7 +44,6 @@ class KendalaFormSyncService {
   }) : _dio = dio {
     // Initialize connectivity monitoring
     _initConnectivityMonitoring();
-
     // Start background sync timer
     _startBackgroundSync();
   }
@@ -247,7 +246,7 @@ class KendalaFormSyncService {
 
     try {
       final data = jsonDecode(formDataJson) as Map<String, dynamic>;
-      print('cek $data');
+      //print('cek $data');
       // Fix the boolean conversion issue - ensure isAnyHandlingEx is properly formatted
       // if (data.containsKey('isAnyHandlingEx')) {
       //   // Convert to string "1" or "0" as expected by the API
@@ -439,7 +438,6 @@ class SyncStats {
   final int syncedForms;
   final int pendingForms;
   final int failedCount;
-
   SyncStats({
     required this.totalForms,
     required this.syncedForms,
