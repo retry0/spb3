@@ -206,7 +206,7 @@ class SessionManager {
 
       // Try alternative approach if the first method fails
       try {
-        await _tokenManager.clearStoredToken();
+        //await _tokenManager.clearStoredToken();
         AppLogger.info('Used token manager to clear session as fallback');
         sessionState.value = SessionState.inactive;
         sessionExpiryTime.value = null;

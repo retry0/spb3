@@ -32,7 +32,7 @@ class _ProfilePageState extends State<ProfilePage> {
           // If not authenticated, trigger auth check
           context.read<AuthBloc>().add(const AuthCheckRequested());
         }
-        
+
         // Create and initialize profile bloc
         return getIt<ProfileBloc>()..add(const ProfileLoadRequested());
       },
@@ -87,15 +87,15 @@ class _ProfilePageState extends State<ProfilePage> {
                     //     return const SizedBox.shrink();
                     //   },
                     // ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh),
-                      onPressed: () {
-                        context.read<ProfileBloc>().add(
-                          const ProfileSyncRequested(),
-                        );
-                      },
-                      tooltip: 'Sync Profile',
-                    ),
+                    // IconButton(
+                    //   icon: const Icon(Icons.refresh),
+                    //   onPressed: () {
+                    //     context.read<ProfileBloc>().add(
+                    //       const ProfileSyncRequested(),
+                    //     );
+                    //   },
+                    //   tooltip: 'Sync Profile',
+                    // ),
                     const LogoutButton(),
                     const SizedBox(width: 8),
                   ],
