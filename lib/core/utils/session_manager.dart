@@ -38,7 +38,7 @@ class SessionManager {
     this._prefs,
     this._secureStorage,
     this._tokenManager, {
-    int sessionTimeoutMinutes = 30,
+    int sessionTimeoutMinutes = 60,
     int? sessionWarningMinutes,
   }) : _sessionTimeoutMinutes = sessionTimeoutMinutes,
        _sessionWarningMinutes =

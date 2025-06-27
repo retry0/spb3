@@ -111,7 +111,7 @@ class SpbModel extends Equatable {
           map['updated_at'] != null
               ? DateTime.fromMillisecondsSinceEpoch(map['updated_at'] * 1000)
               : null,
-      isSynced: (map['is_synced'] as int?) == 1,
+      //isSynced: (map['is_synced'] as int?) == 1,
     );
   }
 
@@ -135,7 +135,7 @@ class SpbModel extends Equatable {
           createdAt != null ? createdAt!.millisecondsSinceEpoch ~/ 1000 : now,
       'updated_at':
           updatedAt != null ? updatedAt!.millisecondsSinceEpoch ~/ 1000 : now,
-      'is_synced': isSynced ? 1 : 0,
+      //'is_synced': isSynced ? 1 : 0,
     };
   }
 
@@ -194,6 +194,6 @@ class SpbModel extends Equatable {
     millTujuanName,
     createdAt,
     updatedAt,
-    isSynced,
+    //isSynced,
   ];
 }

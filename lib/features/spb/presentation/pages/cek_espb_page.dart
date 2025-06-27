@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../pages/spb_page.dart';
 
 import '../../../../core/di/injection.dart';
+//import '../../../../core/config/api_endpoints.dart';
 import '../../data/models/spb_model.dart';
-import '../../../../core/config/api_endpoints.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../pages/spb_page.dart';
 import '../../data/services/cek_spb_form_sync_service.dart';
 import '../widgets/kendala_sync_status_indicator.dart';
 
@@ -26,19 +26,27 @@ class CekEspbPage extends StatefulWidget {
 class _CekEspbPageState extends State<CekEspbPage>
     with SingleTickerProviderStateMixin {
   bool _isLoading = false;
+  bool _isDriverOrVehicleChanged = false;
   bool _isGpsActive = false;
-  String? _errorMessage;
   Position? _currentPosition;
+
+  String? _errorMessage;
   final Dio _dio = getIt<Dio>();
+  bool _isConnected = true;
+  final CekFormSyncService _syncService = getIt<CekFormSyncService>();
+
+  // Animation controllers
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-  bool _isConnected = true;
-  final Connectivity _connectivity = Connectivity();
-  final CekFormSyncService _syncService = getIt<CekFormSyncService>();
+  late Animation<Offset> _slideAnimation;
+
+  // Form key for validation
+  final _formKey = GlobalKey<FormState>();
 
   @override
   void initState() {
     super.initState();
+    // Initialize animations
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -48,36 +56,22 @@ class _CekEspbPageState extends State<CekEspbPage>
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
 
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
+    );
+
     _animationController.forward();
     _checkGpsPermission();
+    //_loadSavedData();
     _checkConnectivity();
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
     super.dispose();
-  }
-
-  Future<void> _checkConnectivity() async {
-    final connectivityResult = await _connectivity.checkConnectivity();
-    setState(() {
-      _isConnected =
-          connectivityResult.isNotEmpty &&
-          !connectivityResult.contains(ConnectivityResult.none);
-    });
-
-    // Listen for connectivity changes
-    _connectivity.onConnectivityChanged.listen((result) {
-      final hasConnectivity =
-          result.isNotEmpty && !result.contains(ConnectivityResult.none);
-
-      if (mounted) {
-        setState(() {
-          _isConnected = hasConnectivity;
-        });
-      }
-    });
   }
 
   Future<void> _checkGpsPermission() async {
@@ -123,6 +117,47 @@ class _CekEspbPageState extends State<CekEspbPage>
     }
   }
 
+  Future<void> _checkConnectivity() async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    setState(() {
+      _isConnected =
+          connectivityResult.isNotEmpty &&
+          !connectivityResult.contains(ConnectivityResult.none);
+    });
+
+    // Listen for connectivity changes
+    Connectivity().onConnectivityChanged.listen((result) {
+      final hasConnectivity =
+          result.isNotEmpty && !result.contains(ConnectivityResult.none);
+
+      if (mounted) {
+        setState(() {
+          _isConnected = hasConnectivity;
+        });
+      }
+    });
+  }
+
+  // Future<void> _loadSavedData() async {
+  //   try {
+  //     final prefs = await SharedPreferences.getInstance();
+  //     final spbId = widget.spb.noSpb;
+
+  //     if (mounted) {
+  //       setState(() {
+  //         _isDriverOrVehicleChanged = isDriverOrVehicleChanged;
+  //         _kendalaController.text = kendalaText;
+  //       });
+  //     }
+  //   } catch (e) {
+  //     if (mounted) {
+  //       setState(() {
+  //         _errorMessage = 'Failed to load saved data: $e';
+  //       });
+  //     }
+  //   }
+  // }
+
   void _showLocationServicesDisabledDialog() {
     showDialog(
       context: context,
@@ -140,7 +175,7 @@ class _CekEspbPageState extends State<CekEspbPage>
           actions: <Widget>[
             TextButton(
               child: const Text('Batal'),
-              onPressed: () async {
+              onPressed: () {
                 // Navigate to Kendala Form page
                 Navigator.push(
                   context,
@@ -199,7 +234,7 @@ class _CekEspbPageState extends State<CekEspbPage>
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Try Again'),
+              child: const Text('Coba Lagi'),
               onPressed: () {
                 Navigator.of(context).pop();
                 _checkGpsPermission();
@@ -257,7 +292,12 @@ class _CekEspbPageState extends State<CekEspbPage>
     );
   }
 
-  Future<void> _acceptSpb() async {
+  Future<void> _saveData() async {
+    // Validate form
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
     // Validate GPS
     if (!_isGpsActive || _currentPosition == null) {
       // Try to get position one more time
@@ -285,217 +325,104 @@ class _CekEspbPageState extends State<CekEspbPage>
       // Prepare data for saving
       final data = {
         'noSPB': widget.spb.noSpb.toString(),
-        'status': "1", // Set status to accepted
+        'status': 1, // Set status to accepted
         'createdBy': widget.spb.driver.toString(),
         'latitude': _currentPosition?.latitude.toString() ?? "0.0",
         'longitude': _currentPosition?.longitude.toString() ?? "0.0",
       };
 
+      // Save to sync service
+      final saveResult = await _syncService.saveForm(
+        spbId: widget.spb.noSpb,
+        formData: data,
+      );
+
+      if (!saveResult) {
+        setState(() {
+          _errorMessage = 'Failed to save form data locally';
+          _isLoading = false;
+        });
+        return;
+      }
+
       if (_isConnected) {
-        // Online mode - send directly to API
-        try {
-          // Set timeout for API request
-          final options = Options(
-            sendTimeout: const Duration(seconds: 30),
-            receiveTimeout: const Duration(seconds: 30),
-          );
+        // Try to sync immediately if online
+        final syncResult = await _syncService.syncForm(widget.spb.noSpb);
 
-          // Call API to accept SPB
-          final response = await _dio.put(
-            ApiServiceEndpoints.AcceptSPBDriver,
-            data: data,
-            options: options,
-          );
-
-          if (response.statusCode == 200) {
-            // Show success message
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('SPB berhasil diterima'),
-                  backgroundColor: Colors.green,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  margin: const EdgeInsets.all(16),
+        if (syncResult) {
+          // Show success message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  'Kendala berhasil disimpan dan disinkronkan',
                 ),
-              );
-
-              // Navigate back after successful acceptance
-              Future.delayed(const Duration(seconds: 1), () {
-                if (mounted) {
-                  Navigator.of(
-                    context,
-                  ).pop(true); // Return true to indicate success
-                }
-              });
-            }
-          } else {
-            throw Exception('Failed to accept SPB: ${response.statusCode}');
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                margin: const EdgeInsets.all(16),
+              ),
+            );
           }
-        } on DioException catch (e) {
-          // Handle Dio specific errors
-          String errorMessage;
-
-          if (e.type == DioExceptionType.connectionTimeout ||
-              e.type == DioExceptionType.sendTimeout ||
-              e.type == DioExceptionType.receiveTimeout) {
-            errorMessage = 'Koneksi timeout. Silakan coba lagi.';
-            // Save to local storage as fallback
-            await _saveDataToLocalStorage(data);
-          } else if (e.type == DioExceptionType.connectionError) {
-            errorMessage = 'Koneksi terputus. Data disimpan secara lokal.';
-            // Save to local storage as fallback
-            await _saveDataToLocalStorage(data);
-          } else {
-            errorMessage = 'Error API: ${e.message}';
-            if (e.response != null) {
-              errorMessage += ' (${e.response!.statusCode})';
-              if (e.response!.data != null) {
-                errorMessage += ': ${e.response!.data}';
-              }
-            }
-            setState(() {
-              _errorMessage = errorMessage;
-              _isLoading = false;
-            });
+        } else {
+          // Show partial success message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  'Kendala disimpan tetapi gagal disinkronkan. Akan dicoba lagi nanti.',
+                ),
+                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                margin: const EdgeInsets.all(16),
+              ),
+            );
           }
         }
       } else {
-        // Offline mode - save to local storage
-        await _saveDataToLocalStorage(data);
-      }
-    } catch (e) {
-      // Handle other errors
-      setState(() {
-        _errorMessage = 'Error menyimpan data: $e';
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _saveDataToLocalStorage(Map<String, dynamic> data) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      // Create a unique key for this SPB
-      final spbKey = 'pending_spb_${widget.spb.noSpb}';
-      Print('dadadad ${data}');
-      // Add timestamp for syncing order
-      data['timestamp'] = DateTime.now().millisecondsSinceEpoch;
-
-      // Save data as JSON string
-      await prefs.setString(spbKey, jsonEncode(data));
-
-      // Keep track of pending SPBs
-      final pendingSpbs = prefs.getStringList('pending_spbs') ?? [];
-      if (!pendingSpbs.contains(widget.spb.noSpb)) {
-        pendingSpbs.add(widget.spb.noSpb);
-        await prefs.setStringList('pending_spbs', pendingSpbs);
-      }
-
-      // Show success message with offline indicator
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'SPB disimpan secara lokal. Akan disinkronkan saat online.',
+        // Show offline message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Kendala disimpan secara lokal. Akan disinkronkan saat online.',
+              ),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              margin: const EdgeInsets.all(16),
+              duration: const Duration(seconds: 3),
             ),
-            backgroundColor: Colors.orange,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            margin: const EdgeInsets.all(16),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-
-        // Navigate back after successful local save
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) {
-            Navigator.of(context).pop(true); // Return true to indicate success
-          }
-        });
-      }
-
-      setState(() {
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Error menyimpan data lokal: $e';
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _syncPendingData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final pendingSpbs = prefs.getStringList('pending_spbs') ?? [];
-
-      if (pendingSpbs.isEmpty) return;
-
-      // Show syncing notification
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Menyinkronkan data yang tertunda...'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-
-      for (final spbId in pendingSpbs) {
-        final spbKey = 'pending_spb_$spbId';
-        final jsonData = prefs.getString(spbKey);
-
-        if (jsonData != null) {
-          try {
-            final data = jsonDecode(jsonData);
-
-            // Call API
-            final response = await _dio.put(
-              ApiServiceEndpoints.AcceptSPBDriver,
-              data: data,
-            );
-
-            if (response.statusCode == 200) {
-              // Remove from pending list on success
-              await prefs.remove(spbKey);
-              pendingSpbs.remove(spbId);
-            }
-          } catch (e) {
-            // Log error but continue with next item
-            print('Error syncing SPB $spbId: $e');
-          }
+          );
         }
       }
 
-      // Update pending list
-      await prefs.setStringList('pending_spbs', pendingSpbs);
-
-      // Show completion notification
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              pendingSpbs.isEmpty
-                  ? 'Semua data berhasil disinkronkan'
-                  : 'Beberapa data gagal disinkronkan dan akan dicoba lagi nanti',
-            ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+      // Navigate back after successful save
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          Navigator.of(context).pop(true); // Return true to indicate success
+        }
+      });
     } catch (e) {
-      print('Error syncing pending data: $e');
+      setState(() {
+        _errorMessage = 'Error saving data: $e';
+        _isLoading = false;
+      });
     }
   }
 
-  void _showAcceptConfirmationDialog() {
+  void _showConfirmationDialog() {
+    // Validate form
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
     // Validate GPS
     if (!_isGpsActive || _currentPosition == null) {
       setState(() {
@@ -503,6 +430,7 @@ class _CekEspbPageState extends State<CekEspbPage>
       });
       return;
     }
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -531,7 +459,7 @@ class _CekEspbPageState extends State<CekEspbPage>
               child: const Text('Terima'),
               onPressed: () {
                 Navigator.of(context).pop();
-                _acceptSpb();
+                _saveData();
               },
             ),
           ],
@@ -557,279 +485,551 @@ class _CekEspbPageState extends State<CekEspbPage>
       ),
       body: FadeTransition(
         opacity: _fadeAnimation,
-        child: SafeArea(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Connectivity indicator
-                if (!_isConnected)
-                  _buildStatusCard(
-                    icon: Icons.wifi_off,
-                    title: 'Mode Offline',
-                    message:
-                        'Anda sedang offline. Data akan disimpan lokal dan disinkronkan saat online.',
-                    color: Colors.orange,
-                  ),
+        child: SlideTransition(
+          position: _slideAnimation,
+          child: SafeArea(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Status indicators
+                    _buildStatusIndicators(),
 
-                // GPS indicator
-                if (!_isGpsActive)
-                  _buildStatusCard(
-                    icon: Icons.location_off,
-                    title: 'GPS tidak aktif',
-                    message: 'Harap aktifkan GPS untuk melanjutkan.',
-                    color: Colors.red,
-                    actionLabel: 'Aktifkan',
-                    onAction: _checkGpsPermission,
-                  ),
+                    const SizedBox(height: 16),
 
-                // GPS coordinates display
-                if (_isGpsActive && _currentPosition != null)
-                  _buildStatusCard(
-                    icon: Icons.location_on,
-                    title: 'GPS aktif',
-                    message:
-                        'Koordinat: ${_currentPosition!.latitude.toStringAsFixed(6)}, ${_currentPosition!.longitude.toStringAsFixed(6)}',
-                    color: Colors.green,
-                  ),
+                    // SPB Info Card
+                    _buildSpbInfoCard(),
 
-                // Error message
-                if (_errorMessage != null)
-                  _buildStatusCard(
-                    icon: Icons.error_outline,
-                    title: 'Error',
-                    message: _errorMessage!,
-                    color: Colors.red,
-                  ),
+                    const SizedBox(height: 24),
 
-                const SizedBox(height: 16),
-
-                // SPB Details Card
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.primary.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                Icons.description_outlined,
-                                color: Theme.of(context).colorScheme.primary,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Detail E-SPB',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleLarge
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  Text(
-                                    'No. SPB: ${widget.spb.noSpb}',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurface.withOpacity(0.7),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Date and Time
-                        _buildInfoGroup(
-                          title: 'Informasi Waktu',
-                          icon: Icons.calendar_today_rounded,
-                          children: [
-                            _buildInfoRow(
-                              label: 'Tanggal Pengantaran',
-                              value: DateFormat(
-                                'dd MMMM yyyy',
-                              ).format(DateTime.parse(widget.spb.tglAntarBuah)),
-                            ),
-                            _buildInfoRow(
-                              label: 'Waktu Pengantaran',
-                              value: DateFormat(
-                                'HH:mm',
-                              ).format(DateTime.parse(widget.spb.tglAntarBuah)),
-                            ),
-                          ],
-                        ),
-
-                        const Divider(height: 32),
-
-                        // Vendor and Destination
-                        _buildInfoGroup(
-                          title: 'Informasi Pengiriman',
-                          icon: Icons.local_shipping_rounded,
-                          children: [
-                            _buildInfoRow(
-                              label: 'No E-SPB',
-                              value: widget.spb.noSpb,
-                            ),
-                            _buildInfoRow(
-                              label: 'Vendor',
-                              value: widget.spb.kodeVendor ?? 'N/A',
-                            ),
-                            _buildInfoRow(
-                              label: 'Tujuan Pengantaran',
-                              value: widget.spb.millTujuan,
-                            ),
-                          ],
-                        ),
-
-                        const Divider(height: 32),
-
-                        // Driver and Vehicle
-                        _buildInfoGroup(
-                          title: 'Informasi Kendaraan',
-                          icon: Icons.person_outline_rounded,
-                          children: [
-                            _buildInfoRow(
-                              label: 'Driver',
-                              value: widget.spb.driver ?? 'N/A',
-                            ),
-                            _buildInfoRow(
-                              label: 'No Polisi Truk',
-                              value: widget.spb.noPolisi ?? 'N/A',
-                            ),
-                          ],
-                        ),
-
-                        const Divider(height: 32),
-
-                        // Cargo Details
-                        _buildInfoGroup(
-                          title: 'Informasi Muatan',
-                          icon: Icons.inventory_2_outlined,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildInfoRow(
-                                    label: 'Jumlah Janjang',
-                                    value: '${widget.spb.jumJjg ?? 'N/A'} Kg',
-                                  ),
-                                ),
-                                Expanded(
-                                  child: _buildInfoRow(
-                                    label: 'Brondolan',
-                                    value:
-                                        '${widget.spb.brondolan ?? 'N/A'} Kg',
-                                  ),
-                                ),
-                              ],
-                            ),
-                            _buildInfoRow(
-                              label: 'Total Berat Taksasi',
-                              value:
-                                  '${widget.spb.totBeratTaksasi ?? 'N/A'} Kg',
-                              valueStyle: Theme.of(
-                                context,
-                              ).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                    // Sync status indicator
+                    KendalaSyncStatusIndicator(
+                      spbNumber: widget.spb.noSpb,
+                      onRetry: () => _syncService.syncForm(widget.spb.noSpb),
                     ),
-                  ),
+
+                    const SizedBox(height: 24),
+
+                    // Submit Button
+                    _buildSubmitButton(),
+                  ],
                 ),
-
-                const SizedBox(height: 24),
-
-                // Sync status indicator
-                KendalaSyncStatusIndicator(
-                  spbNumber: widget.spb.noSpb,
-                  onRetry: () => _syncService.syncForm(widget.spb.noSpb),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Accept Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed:
-                        _isLoading || !_isGpsActive
-                            ? null
-                            : _showAcceptConfirmationDialog,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey.shade300,
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child:
-                        _isLoading
-                            ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                            : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.check_circle_outline_rounded,
-                                  color:
-                                      _isGpsActive
-                                          ? Colors.white
-                                          : Colors.grey.shade400,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Terima SPB',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildStatusIndicators() {
+    return Column(
+      children: [
+        // GPS indicator
+        if (!_isGpsActive)
+          _buildStatusCard(
+            icon: Icons.location_off,
+            title: 'GPS tidak aktif',
+            message: 'Harap aktifkan GPS untuk melanjutkan.',
+            color: Colors.red,
+            actionLabel: 'Aktifkan',
+            onAction: _checkGpsPermission,
+          ),
+
+        // GPS coordinates display
+        if (_isGpsActive && _currentPosition != null)
+          _buildStatusCard(
+            icon: Icons.location_on,
+            title: 'GPS aktif',
+            message:
+                'Koordinat: ${_currentPosition!.latitude.toStringAsFixed(6)}, ${_currentPosition!.longitude.toStringAsFixed(6)}',
+            color: Colors.green,
+          ),
+
+        // Offline indicator
+        if (!_isConnected)
+          _buildStatusCard(
+            icon: Icons.wifi_off,
+            title: 'Mode Offline',
+            message:
+                'Anda sedang offline. Data akan disimpan lokal dan disinkronkan saat online.',
+            color: Colors.orange,
+          ),
+
+        // Error message
+        if (_errorMessage != null)
+          _buildStatusCard(
+            icon: Icons.error_outline,
+            title: 'Error',
+            message: _errorMessage!,
+            color: Colors.red,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSpbInfoCard() {
+    // SPB Details Card
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.description_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Detail E-SPB',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'No. SPB: ${widget.spb.noSpb}',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Date and Time
+            _buildInfoGroup(
+              title: 'Informasi Waktu',
+              icon: Icons.calendar_today_rounded,
+              children: [
+                _buildInfoRow(
+                  label: 'Tanggal Pengantaran',
+                  value: DateFormat(
+                    'dd MMMM yyyy',
+                  ).format(DateTime.parse(widget.spb.tglAntarBuah)),
+                ),
+                _buildInfoRow(
+                  label: 'Waktu Pengantaran',
+                  value: DateFormat(
+                    'HH:mm',
+                  ).format(DateTime.parse(widget.spb.tglAntarBuah)),
+                ),
+              ],
+            ),
+
+            const Divider(height: 32),
+
+            // Vendor and Destination
+            _buildInfoGroup(
+              title: 'Informasi Pengiriman',
+              icon: Icons.local_shipping_rounded,
+              children: [
+                _buildInfoRow(label: 'No E-SPB', value: widget.spb.noSpb),
+                _buildInfoRow(
+                  label: 'Vendor',
+                  value: widget.spb.kodeVendor ?? 'N/A',
+                ),
+                _buildInfoRow(
+                  label: 'Tujuan Pengantaran',
+                  value: widget.spb.millTujuan,
+                ),
+              ],
+            ),
+
+            const Divider(height: 32),
+
+            // Driver and Vehicle
+            _buildInfoGroup(
+              title: 'Informasi Kendaraan',
+              icon: Icons.person_outline_rounded,
+              children: [
+                _buildInfoRow(
+                  label: 'Driver',
+                  value: widget.spb.driver ?? 'N/A',
+                ),
+                _buildInfoRow(
+                  label: 'No Polisi Truk',
+                  value: widget.spb.noPolisi ?? 'N/A',
+                ),
+              ],
+            ),
+
+            const Divider(height: 32),
+
+            // Cargo Details
+            _buildInfoGroup(
+              title: 'Informasi Muatan',
+              icon: Icons.inventory_2_outlined,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoRow(
+                        label: 'Jumlah Janjang',
+                        value: '${widget.spb.jumJjg.toString()} Kg',
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildInfoRow(
+                        label: 'Brondolan',
+                        value: '${widget.spb.brondolan.toString()} Kg',
+                      ),
+                    ),
+                  ],
+                ),
+                _buildInfoRow(
+                  label: 'Total Berat Taksasi',
+                  value: '${widget.spb.totBeratTaksasi.toString()} Kg',
+                  valueStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    // return Card(
+    //   elevation: 2,
+    //   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    //   child: Padding(
+    //     padding: const EdgeInsets.all(20),
+    //     child: Column(
+    //       crossAxisAlignment: CrossAxisAlignment.start,
+    //       children: [
+    //         Row(
+    //           children: [
+    //             Container(
+    //               padding: const EdgeInsets.all(10),
+    //               decoration: BoxDecoration(
+    //                 color: Theme.of(
+    //                   context,
+    //                 ).colorScheme.primary.withOpacity(0.1),
+    //                 borderRadius: BorderRadius.circular(12),
+    //               ),
+    //               child: Icon(
+    //                 Icons.description_outlined,
+    //                 color: Theme.of(context).colorScheme.primary,
+    //                 size: 24,
+    //               ),
+    //             ),
+    //             const SizedBox(width: 12),
+    //             Expanded(
+    //               child: Column(
+    //                 crossAxisAlignment: CrossAxisAlignment.start,
+    //                 children: [
+    //                   Text(
+    //                     'Informasi SPB',
+    //                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
+    //                       fontWeight: FontWeight.bold,
+    //                     ),
+    //                   ),
+    //                   Text(
+    //                     'No. SPB: ${widget.spb.noSpb}',
+    //                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+    //                       color: Theme.of(
+    //                         context,
+    //                       ).colorScheme.onSurface.withOpacity(0.7),
+    //                     ),
+    //                   ),
+    //                 ],
+    //               ),
+    //             ),
+    //           ],
+    //         ),
+    //         const SizedBox(height: 24),
+
+    //         // Date and Time
+    //         _buildInfoGroup(
+    //           title: 'Informasi Waktu',
+    //           icon: Icons.calendar_today_rounded,
+    //           children: [
+    //             _buildInfoRow(
+    //               label: 'Tanggal Pengantaran',
+    //               value: DateFormat(
+    //                 'dd MMMM yyyy',
+    //               ).format(DateTime.parse(widget.spb.tglAntarBuah)),
+    //             ),
+    //             _buildInfoRow(
+    //               label: 'Waktu Pengantaran',
+    //               value: DateFormat(
+    //                 'HH:mm',
+    //               ).format(DateTime.parse(widget.spb.tglAntarBuah)),
+    //             ),
+    //           ],
+    //         ),
+
+    //         const Divider(height: 32),
+
+    //         // Vendor and Destination
+    //         _buildInfoGroup(
+    //           title: 'Informasi Pengiriman',
+    //           icon: Icons.local_shipping_rounded,
+    //           children: [
+    //             _buildInfoRow(
+    //               label: 'Vendor',
+    //               value: widget.spb.kodeVendor ?? 'N/A',
+    //             ),
+    //             _buildInfoRow(
+    //               label: 'Tujuan Pengantaran',
+    //               value: widget.spb.millTujuanName ?? 'N/A',
+    //             ),
+    //           ],
+    //         ),
+
+    //         const Divider(height: 32),
+
+    //         // Driver and Vehicle
+    //         _buildInfoGroup(
+    //           title: 'Informasi Kendaraan',
+    //           icon: Icons.person_outline_rounded,
+    //           children: [
+    //             _buildInfoRow(
+    //               label: 'Driver',
+    //               value: widget.spb.driver ?? 'N/A',
+    //             ),
+    //             _buildInfoRow(
+    //               label: 'No Polisi Truk',
+    //               value: widget.spb.noPolisi ?? 'N/A',
+    //             ),
+    //           ],
+    //         ),
+    //       ],
+    //     ),
+    //   ),
+    // );
+  }
+
+  Widget _buildKendalaFormCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.errorColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.report_problem_outlined,
+                    color: AppTheme.errorColor,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Keterangan Kendala',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Checkbox for driver/vehicle change
+            Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color:
+                      _isDriverOrVehicleChanged
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(
+                            context,
+                          ).colorScheme.outline.withOpacity(0.5),
+                ),
+              ),
+              child: CheckboxListTile(
+                title: const Text('Ada pergantian driver atau kendaraan'),
+                subtitle: const Text(
+                  'Centang jika terjadi pergantian driver atau kendaraan',
+                ),
+                value: _isDriverOrVehicleChanged,
+                onChanged: (value) {
+                  setState(() {
+                    _isDriverOrVehicleChanged = value ?? false;
+                    // Clear error message when checkbox changes
+                    _errorMessage = null;
+                  });
+                },
+                activeColor: Theme.of(context).colorScheme.primary,
+                checkColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                controlAffinity: ListTileControlAffinity.leading,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Disclaimer text
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Laporan kendala akan diteruskan ke admin untuk ditindaklanjuti',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: ElevatedButton(
+        onPressed: _isLoading ? null : _showConfirmationDialog,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.green,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.grey.shade300,
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child:
+            _isLoading
+                ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+                : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline_rounded,
+                      color: _isGpsActive ? Colors.white : Colors.grey.shade400,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Terima SPB',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+      ),
+    );
+    // return SizedBox(
+    //   width: double.infinity,
+    //   height: 56,
+    //   child: ElevatedButton(
+    //     onPressed: _isLoading ? null : _showConfirmationDialog,
+    //     style: ElevatedButton.styleFrom(
+    //       backgroundColor: AppTheme.errorColor,
+    //       foregroundColor: Colors.white,
+    //       disabledBackgroundColor: Colors.grey.shade300,
+    //       elevation: 2,
+    //       shape: RoundedRectangleBorder(
+    //         borderRadius: BorderRadius.circular(12),
+    //       ),
+    //     ),
+    //     child:
+    //         _isLoading
+    //             ? const SizedBox(
+    //               width: 24,
+    //               height: 24,
+    //               child: CircularProgressIndicator(
+    //                 color: Colors.white,
+    //                 strokeWidth: 2,
+    //               ),
+    //             )
+    //             : Row(
+    //               mainAxisAlignment: MainAxisAlignment.center,
+    //               children: [
+    //                 Icon(
+    //                   Icons.report_problem_outlined,
+    //                   color:
+    //                       _isDriverOrVehicleChanged && _isGpsActive
+    //                           ? Colors.white
+    //                           : Colors.grey.shade400,
+    //                 ),
+    //                 const SizedBox(width: 8),
+    //                 Text(
+    //                   'Simpan Kendala',
+    //                   style: const TextStyle(
+    //                     fontSize: 16,
+    //                     fontWeight: FontWeight.bold,
+    //                   ),
+    //                 ),
+    //               ],
+    //             ),
+    //   ),
+    // );
   }
 
   Widget _buildStatusCard({

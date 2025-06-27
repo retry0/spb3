@@ -89,35 +89,31 @@ class CekFormSyncService {
   Future<bool> saveForm({
     required String spbId,
     required Map<String, dynamic> formData,
-    required bool isDriverChanged,
-    required String kendalaText,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
 
       // Save form data with proper error handling
-      await prefs.setString('kendala_form_data_$spbId', jsonEncode(formData));
-      await prefs.setBool('kendala_driver_changed_$spbId', isDriverChanged);
-      await prefs.setString('kendala_text_$spbId', kendalaText);
-      await prefs.setBool('kendala_synced_$spbId', false);
+      await prefs.setString('cek_form_data_$spbId', jsonEncode(formData));
+      await prefs.setBool('cek_synced_$spbId', false);
 
       // Update pending forms list
-      final pendingForms = prefs.getStringList('pending_kendala_forms') ?? [];
+      final pendingForms = prefs.getStringList('pending_cek_forms') ?? [];
       if (!pendingForms.contains(spbId)) {
         pendingForms.add(spbId);
-        await prefs.setStringList('pending_kendala_forms', pendingForms);
+        await prefs.setStringList('pending_cek_forms', pendingForms);
       }
 
       // Update last modified time
       await prefs.setInt(
-        'kendala_modified_$spbId',
+        'cek_modified_$spbId',
         DateTime.now().millisecondsSinceEpoch,
       );
 
-      AppLogger.info('Kendala form saved locally for SPB: $spbId');
+      AppLogger.info('Cek form saved locally for SPB: $spbId');
       return true;
     } catch (e) {
-      AppLogger.error('Error saving kendala form data: $e');
+      AppLogger.error('Error saving Cek form data: $e');
       return false;
     }
   }
@@ -126,7 +122,7 @@ class CekFormSyncService {
   Future<Map<String, dynamic>?> getFormData(String spbId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final formDataJson = prefs.getString('kendala_form_data_$spbId');
+      final formDataJson = prefs.getString('cek_form_data_$spbId');
 
       if (formDataJson == null) return null;
 
@@ -140,13 +136,13 @@ class CekFormSyncService {
   /// Check if a form is synced
   Future<bool> isFormSynced(String spbId) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('kendala_synced_$spbId') ?? false;
+    return prefs.getBool('cek_synced_$spbId') ?? false;
   }
 
   /// Get all pending forms
   Future<List<String>> getPendingForms() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getStringList('pending_kendala_forms') ?? [];
+    return prefs.getStringList('pending_cek_forms') ?? [];
   }
 
   /// Sync all pending forms
@@ -165,7 +161,7 @@ class CekFormSyncService {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final pendingForms = prefs.getStringList('pending_kendala_forms') ?? [];
+      final pendingForms = prefs.getStringList('pending_cek_forms') ?? [];
 
       if (pendingForms.isEmpty) {
         _isSyncing = false;
@@ -176,7 +172,7 @@ class CekFormSyncService {
         return true;
       }
 
-      AppLogger.info('Syncing ${pendingForms.length} pending kendala forms');
+      AppLogger.info('Syncing ${pendingForms.length} pending cek forms');
 
       bool allSynced = true;
       List<String> successfullySync = [];
@@ -196,7 +192,7 @@ class CekFormSyncService {
             pendingForms
                 .where((spbId) => !successfullySync.contains(spbId))
                 .toList();
-        await prefs.setStringList('pending_kendala_forms', updatedPendingForms);
+        await prefs.setStringList('pending_cek_forms', updatedPendingForms);
       }
 
       // Update sync status
@@ -215,7 +211,7 @@ class CekFormSyncService {
       _isSyncing = false;
       return allSynced;
     } catch (e) {
-      AppLogger.error('Error syncing kendala forms: $e');
+      AppLogger.error('Error syncing cek forms: $e');
       if (!silent) {
         syncStatusNotifier.value = SyncStatus.failed;
         errorMessageNotifier.value = 'Error syncing forms: $e';
@@ -237,7 +233,7 @@ class CekFormSyncService {
   /// Internal method to sync a form with retry logic
   Future<bool> _syncForm(String spbId, {int retryCount = 0}) async {
     final prefs = await SharedPreferences.getInstance();
-    final formDataJson = prefs.getString('kendala_form_data_$spbId');
+    final formDataJson = prefs.getString('cek_form_data_$spbId');
     print('form $formDataJson');
     if (formDataJson == null) {
       AppLogger.warning('No form data found for SPB: $spbId');
@@ -246,7 +242,27 @@ class CekFormSyncService {
 
     try {
       final data = jsonDecode(formDataJson) as Map<String, dynamic>;
-      print('cek DATA SPB $data');
+
+      print('datasssssss $data');
+      // Fix the boolean conversion issue - ensure isAnyHandlingEx is properly formatted
+      if (data.containsKey('status')) {
+        // Convert to string "1" or "0" as expected by the API
+        if (data['status'] is bool) {
+          data['status'] = (data['status'] as bool) ? "1" : "0";
+        } else if (data['status'] is int) {
+          data['status'] = (data['status'] as int) > 0 ? "1" : "0";
+        } else if (data['status'] is String) {
+          // If it's already a string, make sure it's "1" or "0"
+          final value = data['status'] as String;
+          if (value != "0" && value != "1") {
+            data['status'] =
+                value == "true" || value == "yes" || int.tryParse(value) == 1
+                    ? "1"
+                    : "0";
+          }
+        }
+      }
+
       // Validate required fields
       _validateFormData(data);
 
