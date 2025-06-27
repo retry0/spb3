@@ -49,17 +49,17 @@ class DatabaseHelper {
     try {
       AppLogger.info('Creating database tables...');
 
-      // Settings table for local storage
-      await db.execute('''
-        CREATE TABLE settings (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          key TEXT UNIQUE NOT NULL,
-          value TEXT,
-          type TEXT NOT NULL DEFAULT 'string',
-          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-        )
-      ''');
+      // // Settings table for local storage
+      // await db.execute('''
+      //   CREATE TABLE settings (
+      //     id INTEGER PRIMARY KEY AUTOINCREMENT,
+      //     key TEXT UNIQUE NOT NULL,
+      //     value TEXT,
+      //     type TEXT NOT NULL DEFAULT 'string',
+      //     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+      //     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+      //   )
+      // ''');
 
       // Users table with username support
       await db.execute('''
@@ -77,52 +77,52 @@ class DatabaseHelper {
         )
       ''');
 
-      // Data entries table for main application data
-      await db.execute('''
-        CREATE TABLE data_entries (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          remote_id TEXT UNIQUE,
-          UserName TEXT NOT NULL,
-          Nama TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'active',
-          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-          synced_at INTEGER,
-          is_dirty INTEGER NOT NULL DEFAULT 0
-        )
-      ''');
+      // // Data entries table for main application data
+      // await db.execute('''
+      //   CREATE TABLE data_entries (
+      //     id INTEGER PRIMARY KEY AUTOINCREMENT,
+      //     remote_id TEXT UNIQUE,
+      //     UserName TEXT NOT NULL,
+      //     Nama TEXT NOT NULL,
+      //     status TEXT NOT NULL DEFAULT 'active',
+      //     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+      //     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+      //     synced_at INTEGER,
+      //     is_dirty INTEGER NOT NULL DEFAULT 0
+      //   )
+      // ''');
 
-      // Activity logs table
-      await db.execute('''
-        CREATE TABLE activity_logs (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          type TEXT NOT NULL,
-          description TEXT NOT NULL,
-          user_id TEXT,
-          username TEXT,
-          metadata TEXT,
-          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-          FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
-          FOREIGN KEY (username) REFERENCES users (UserName) ON DELETE SET NULL
-        )
-      ''');
+      // // Activity logs table
+      // await db.execute('''
+      //   CREATE TABLE activity_logs (
+      //     id INTEGER PRIMARY KEY AUTOINCREMENT,
+      //     type TEXT NOT NULL,
+      //     description TEXT NOT NULL,
+      //     user_id TEXT,
+      //     username TEXT,
+      //     metadata TEXT,
+      //     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+      //     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
+      //     FOREIGN KEY (username) REFERENCES users (UserName) ON DELETE SET NULL
+      //   )
+      // ''');
 
-      // Sync queue table for offline operations
-      await db.execute('''
-        CREATE TABLE sync_queue (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          operation TEXT NOT NULL,
-          table_name TEXT NOT NULL,
-          record_id TEXT NOT NULL,
-          data TEXT NOT NULL,
-          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-          retry_count INTEGER NOT NULL DEFAULT 0,
-          last_error TEXT,
-          priority INTEGER NOT NULL DEFAULT 5,
-          status TEXT NOT NULL DEFAULT 'pending'
-        )
-      ''');
+      // // Sync queue table for offline operations
+      // await db.execute('''
+      //   CREATE TABLE sync_queue (
+      //     id INTEGER PRIMARY KEY AUTOINCREMENT,
+      //     operation TEXT NOT NULL,
+      //     table_name TEXT NOT NULL,
+      //     record_id TEXT NOT NULL,
+      //     data TEXT NOT NULL,
+      //     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+      //     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+      //     retry_count INTEGER NOT NULL DEFAULT 0,
+      //     last_error TEXT,
+      //     priority INTEGER NOT NULL DEFAULT 5,
+      //     status TEXT NOT NULL DEFAULT 'pending'
+      //   )
+      // ''');
 
       // SPB data table
       await db.execute('''
@@ -173,69 +173,69 @@ class DatabaseHelper {
         )
       ''');
 
-      // Auth sync queue table for offline authentication operations
-      await db.execute('''
-        CREATE TABLE auth_sync_queue (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          operation TEXT NOT NULL,
-          data TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'pending',
-          retry_count INTEGER NOT NULL DEFAULT 0,
-          last_error TEXT,
-          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-        )
-      ''');
-      
-      // ESPB form data table for storing form submissions
-      await db.execute('''
-        CREATE TABLE espb_form_data (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          no_spb TEXT UNIQUE NOT NULL,
-          status TEXT NOT NULL,
-          created_by TEXT NOT NULL,
-          latitude TEXT NOT NULL,
-          longitude TEXT NOT NULL,
-          alasan TEXT,
-          is_any_handling_ex INTEGER,
-          timestamp INTEGER NOT NULL,
-          is_synced INTEGER NOT NULL DEFAULT 0,
-          retry_count INTEGER NOT NULL DEFAULT 0,
-          last_error TEXT,
-          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-        )
-      ''');
+      // // Auth sync queue table for offline authentication operations
+      // await db.execute('''
+      //   CREATE TABLE auth_sync_queue (
+      //     id INTEGER PRIMARY KEY AUTOINCREMENT,
+      //     operation TEXT NOT NULL,
+      //     data TEXT NOT NULL,
+      //     status TEXT NOT NULL DEFAULT 'pending',
+      //     retry_count INTEGER NOT NULL DEFAULT 0,
+      //     last_error TEXT,
+      //     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+      //     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+      //   )
+      // ''');
+
+      // // ESPB form data table for storing form submissions
+      // await db.execute('''
+      //   CREATE TABLE espb_form_data (
+      //     id INTEGER PRIMARY KEY AUTOINCREMENT,
+      //     no_spb TEXT UNIQUE NOT NULL,
+      //     status TEXT NOT NULL,
+      //     created_by TEXT NOT NULL,
+      //     latitude TEXT NOT NULL,
+      //     longitude TEXT NOT NULL,
+      //     alasan TEXT,
+      //     is_any_handling_ex INTEGER,
+      //     timestamp INTEGER NOT NULL,
+      //     is_synced INTEGER NOT NULL DEFAULT 0,
+      //     retry_count INTEGER NOT NULL DEFAULT 0,
+      //     last_error TEXT,
+      //     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+      //     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+      //   )
+      // ''');
 
       // Create indexes for better performance
-      await db.execute('CREATE INDEX idx_settings_key ON settings (key)');
+      //await db.execute('CREATE INDEX idx_settings_key ON settings (key)');
       await db.execute('CREATE INDEX idx_users_username ON users (UserName)');
       await db.execute('CREATE INDEX idx_users_is_dirty ON users (is_dirty)');
       await db.execute('CREATE INDEX idx_users_synced_at ON users (synced_at)');
-      await db.execute(
-        'CREATE INDEX idx_data_entries_status ON data_entries (status)',
-      );
-      await db.execute(
-        'CREATE INDEX idx_data_entries_synced ON data_entries (synced_at)',
-      );
-      await db.execute(
-        'CREATE INDEX idx_activity_logs_type ON activity_logs (type)',
-      );
-      await db.execute(
-        'CREATE INDEX idx_activity_logs_username ON activity_logs (username)',
-      );
-      await db.execute(
-        'CREATE INDEX idx_activity_logs_created ON activity_logs (created_at)',
-      );
-      await db.execute(
-        'CREATE INDEX idx_sync_queue_operation ON sync_queue (operation)',
-      );
-      await db.execute(
-        'CREATE INDEX idx_sync_queue_status ON sync_queue (status)',
-      );
-      await db.execute(
-        'CREATE INDEX idx_sync_queue_priority ON sync_queue (priority)',
-      );
+      // await db.execute(
+      //   'CREATE INDEX idx_data_entries_status ON data_entries (status)',
+      // );
+      // await db.execute(
+      //   'CREATE INDEX idx_data_entries_synced ON data_entries (synced_at)',
+      // );
+      // await db.execute(
+      //   'CREATE INDEX idx_activity_logs_type ON activity_logs (type)',
+      // );
+      // await db.execute(
+      //   'CREATE INDEX idx_activity_logs_username ON activity_logs (username)',
+      // );
+      // await db.execute(
+      //   'CREATE INDEX idx_activity_logs_created ON activity_logs (created_at)',
+      // );
+      // await db.execute(
+      //   'CREATE INDEX idx_sync_queue_operation ON sync_queue (operation)',
+      // );
+      // await db.execute(
+      //   'CREATE INDEX idx_sync_queue_status ON sync_queue (status)',
+      // );
+      // await db.execute(
+      //   'CREATE INDEX idx_sync_queue_priority ON sync_queue (priority)',
+      // );
       await db.execute('CREATE INDEX idx_spb_data_driver ON spb_data (driver)');
       await db.execute(
         'CREATE INDEX idx_spb_data_kd_vendor ON spb_data (kode_vendor)',
@@ -253,21 +253,21 @@ class DatabaseHelper {
       await db.execute(
         'CREATE INDEX idx_auth_tokens_expires_at ON auth_tokens (expires_at)',
       );
-      await db.execute(
-        'CREATE INDEX idx_auth_sync_queue_status ON auth_sync_queue (status)',
-      );
-      await db.execute(
-        'CREATE INDEX idx_auth_sync_queue_operation ON auth_sync_queue (operation)',
-      );
-      await db.execute(
-        'CREATE INDEX idx_espb_form_data_no_spb ON espb_form_data (no_spb)',
-      );
-      await db.execute(
-        'CREATE INDEX idx_espb_form_data_is_synced ON espb_form_data (is_synced)',
-      );
-      await db.execute(
-        'CREATE INDEX idx_espb_form_data_timestamp ON espb_form_data (timestamp)',
-      );
+      // await db.execute(
+      //   'CREATE INDEX idx_auth_sync_queue_status ON auth_sync_queue (status)',
+      // );
+      // await db.execute(
+      //   'CREATE INDEX idx_auth_sync_queue_operation ON auth_sync_queue (operation)',
+      // );
+      // await db.execute(
+      //   'CREATE INDEX idx_espb_form_data_no_spb ON espb_form_data (no_spb)',
+      // );
+      // await db.execute(
+      //   'CREATE INDEX idx_espb_form_data_is_synced ON espb_form_data (is_synced)',
+      // );
+      // await db.execute(
+      //   'CREATE INDEX idx_espb_form_data_timestamp ON espb_form_data (timestamp)',
+      // );
 
       AppLogger.info('Database tables created successfully');
     } catch (e) {
@@ -299,15 +299,15 @@ class DatabaseHelper {
       await _migrateToAddOfflineAuthTables(db);
     }
 
-    if (oldVersion < 6) {
-      // Migration to add auth sync queue table
-      await _migrateToAddAuthSyncQueueTable(db);
-    }
-    
-    if (oldVersion < 7) {
-      // Migration to add ESPB form data table
-      await _migrateToAddEspbFormDataTable(db);
-    }
+    // if (oldVersion < 6) {
+    //   // Migration to add auth sync queue table
+    //   await _migrateToAddAuthSyncQueueTable(db);
+    // }
+
+    // if (oldVersion < 7) {
+    //   // Migration to add ESPB form data table
+    //   await _migrateToAddEspbFormDataTable(db);
+    // }
   }
 
   Future<void> _migrateToUsernameAuth(Database db) async {
@@ -317,16 +317,16 @@ class DatabaseHelper {
       // Add username column to users table
       await db.execute('ALTER TABLE users ADD COLUMN username TEXT');
 
-      // Add username column to activity_logs
-      await db.execute('ALTER TABLE activity_logs ADD COLUMN username TEXT');
+      // // Add username column to activity_logs
+      // await db.execute('ALTER TABLE activity_logs ADD COLUMN username TEXT');
 
       // Create new indexes
       await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_users_username ON users (username)',
       );
-      await db.execute(
-        'CREATE INDEX IF NOT EXISTS idx_activity_logs_username ON activity_logs (username)',
-      );
+      // await db.execute(
+      //   'CREATE INDEX IF NOT EXISTS idx_activity_logs_username ON activity_logs (username)',
+      // );
 
       // Generate usernames for existing users (email prefix)
       final existingUsers = await db.query('users');
@@ -529,102 +529,102 @@ class DatabaseHelper {
     }
   }
 
-  Future<void> _migrateToAddAuthSyncQueueTable(Database db) async {
-    try {
-      AppLogger.info('Migrating to add auth sync queue table...');
+  // Future<void> _migrateToAddAuthSyncQueueTable(Database db) async {
+  //   try {
+  //     AppLogger.info('Migrating to add auth sync queue table...');
 
-      // Check if auth_sync_queue table already exists
-      final tables = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='auth_sync_queue'",
-      );
+  //     // Check if auth_sync_queue table already exists
+  //     final tables = await db.rawQuery(
+  //       "SELECT name FROM sqlite_master WHERE type='table' AND name='auth_sync_queue'",
+  //     );
 
-      if (tables.isEmpty) {
-        // Create auth_sync_queue table
-        await db.execute('''
-          CREATE TABLE auth_sync_queue (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            operation TEXT NOT NULL,
-            data TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'pending',
-            retry_count INTEGER NOT NULL DEFAULT 0,
-            last_error TEXT,
-            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-          )
-        ''');
+  //     if (tables.isEmpty) {
+  //       // Create auth_sync_queue table
+  //       await db.execute('''
+  //         CREATE TABLE auth_sync_queue (
+  //           id INTEGER PRIMARY KEY AUTOINCREMENT,
+  //           operation TEXT NOT NULL,
+  //           data TEXT NOT NULL,
+  //           status TEXT NOT NULL DEFAULT 'pending',
+  //           retry_count INTEGER NOT NULL DEFAULT 0,
+  //           last_error TEXT,
+  //           created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+  //           updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+  //         )
+  //       ''');
 
-        // Create indexes
-        await db.execute(
-          'CREATE INDEX idx_auth_sync_queue_status ON auth_sync_queue (status)',
-        );
-        await db.execute(
-          'CREATE INDEX idx_auth_sync_queue_operation ON auth_sync_queue (operation)',
-        );
+  //       // Create indexes
+  //       await db.execute(
+  //         'CREATE INDEX idx_auth_sync_queue_status ON auth_sync_queue (status)',
+  //       );
+  //       await db.execute(
+  //         'CREATE INDEX idx_auth_sync_queue_operation ON auth_sync_queue (operation)',
+  //       );
 
-        AppLogger.info('Auth sync queue table created successfully');
-      } else {
-        AppLogger.info(
-          'Auth sync queue table already exists, skipping migration',
-        );
-      }
-    } catch (e) {
-      AppLogger.error('Failed to migrate to add auth sync queue table', e);
-      rethrow;
-    }
-  }
-  
-  Future<void> _migrateToAddEspbFormDataTable(Database db) async {
-    try {
-      AppLogger.info('Migrating to add ESPB form data table...');
+  //       AppLogger.info('Auth sync queue table created successfully');
+  //     } else {
+  //       AppLogger.info(
+  //         'Auth sync queue table already exists, skipping migration',
+  //       );
+  //     }
+  //   } catch (e) {
+  //     AppLogger.error('Failed to migrate to add auth sync queue table', e);
+  //     rethrow;
+  //   }
+  // }
 
-      // Check if espb_form_data table already exists
-      final tables = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='espb_form_data'",
-      );
+  // Future<void> _migrateToAddEspbFormDataTable(Database db) async {
+  //   try {
+  //     AppLogger.info('Migrating to add ESPB form data table...');
 
-      if (tables.isEmpty) {
-        // Create espb_form_data table
-        await db.execute('''
-          CREATE TABLE espb_form_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            no_spb TEXT UNIQUE NOT NULL,
-            status TEXT NOT NULL,
-            created_by TEXT NOT NULL,
-            latitude TEXT NOT NULL,
-            longitude TEXT NOT NULL,
-            alasan TEXT,
-            is_any_handling_ex INTEGER,
-            timestamp INTEGER NOT NULL,
-            is_synced INTEGER NOT NULL DEFAULT 0,
-            retry_count INTEGER NOT NULL DEFAULT 0,
-            last_error TEXT,
-            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-          )
-        ''');
+  //     // Check if espb_form_data table already exists
+  //     final tables = await db.rawQuery(
+  //       "SELECT name FROM sqlite_master WHERE type='table' AND name='espb_form_data'",
+  //     );
 
-        // Create indexes
-        await db.execute(
-          'CREATE INDEX idx_espb_form_data_no_spb ON espb_form_data (no_spb)',
-        );
-        await db.execute(
-          'CREATE INDEX idx_espb_form_data_is_synced ON espb_form_data (is_synced)',
-        );
-        await db.execute(
-          'CREATE INDEX idx_espb_form_data_timestamp ON espb_form_data (timestamp)',
-        );
+  //     if (tables.isEmpty) {
+  //       // Create espb_form_data table
+  //       await db.execute('''
+  //         CREATE TABLE espb_form_data (
+  //           id INTEGER PRIMARY KEY AUTOINCREMENT,
+  //           no_spb TEXT UNIQUE NOT NULL,
+  //           status TEXT NOT NULL,
+  //           created_by TEXT NOT NULL,
+  //           latitude TEXT NOT NULL,
+  //           longitude TEXT NOT NULL,
+  //           alasan TEXT,
+  //           is_any_handling_ex INTEGER,
+  //           timestamp INTEGER NOT NULL,
+  //           is_synced INTEGER NOT NULL DEFAULT 0,
+  //           retry_count INTEGER NOT NULL DEFAULT 0,
+  //           last_error TEXT,
+  //           created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+  //           updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+  //         )
+  //       ''');
 
-        AppLogger.info('ESPB form data table created successfully');
-      } else {
-        AppLogger.info(
-          'ESPB form data table already exists, skipping migration',
-        );
-      }
-    } catch (e) {
-      AppLogger.error('Failed to migrate to add ESPB form data table', e);
-      rethrow;
-    }
-  }
+  //       // Create indexes
+  //       await db.execute(
+  //         'CREATE INDEX idx_espb_form_data_no_spb ON espb_form_data (no_spb)',
+  //       );
+  //       await db.execute(
+  //         'CREATE INDEX idx_espb_form_data_is_synced ON espb_form_data (is_synced)',
+  //       );
+  //       await db.execute(
+  //         'CREATE INDEX idx_espb_form_data_timestamp ON espb_form_data (timestamp)',
+  //       );
+
+  //       AppLogger.info('ESPB form data table created successfully');
+  //     } else {
+  //       AppLogger.info(
+  //         'ESPB form data table already exists, skipping migration',
+  //       );
+  //     }
+  //   } catch (e) {
+  //     AppLogger.error('Failed to migrate to add ESPB form data table', e);
+  //     rethrow;
+  //   }
+  // }
 
   // Generic CRUD operations
   Future<int> insert(String table, Map<String, dynamic> data) async {
@@ -727,16 +727,16 @@ class DatabaseHelper {
   Future<void> clearAllData() async {
     final db = await database;
     await db.transaction((txn) async {
-      await txn.delete('settings');
+      //await txn.delete('settings');
       await txn.delete('users');
-      await txn.delete('data_entries');
-      await txn.delete('activity_logs');
-      await txn.delete('sync_queue');
+      //await txn.delete('data_entries');
+      //await txn.delete('activity_logs');
+      //await txn.delete('sync_queue');
       await txn.delete('spb_data');
       await txn.delete('auth_tokens');
       await txn.delete('user_credentials');
-      await txn.delete('auth_sync_queue');
-      await txn.delete('espb_form_data');
+      //await txn.delete('auth_sync_queue');
+      //await txn.delete('espb_form_data');
     });
     AppLogger.info('All database data cleared');
   }
@@ -909,71 +909,71 @@ class DatabaseHelper {
     }
   }
 
-  // Auth sync queue operations
-  Future<int> addToAuthSyncQueue(
-    String operation,
-    Map<String, dynamic> data,
-  ) async {
-    final db = await database;
-    try {
-      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+  // // Auth sync queue operations
+  // Future<int> addToAuthSyncQueue(
+  //   String operation,
+  //   Map<String, dynamic> data,
+  // ) async {
+  //   final db = await database;
+  //   try {
+  //     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
-      return await db.insert('auth_sync_queue', {
-        'operation': operation,
-        'data': jsonEncode(data),
-        'status': 'pending',
-        'retry_count': 0,
-        'created_at': now,
-        'updated_at': now,
-      });
-    } catch (e) {
-      AppLogger.error('Failed to add to auth sync queue', e);
-      rethrow;
-    }
-  }
+  //     return await db.insert('auth_sync_queue', {
+  //       'operation': operation,
+  //       'data': jsonEncode(data),
+  //       'status': 'pending',
+  //       'retry_count': 0,
+  //       'created_at': now,
+  //       'updated_at': now,
+  //     });
+  //   } catch (e) {
+  //     AppLogger.error('Failed to add to auth sync queue', e);
+  //     rethrow;
+  //   }
+  // }
 
-  Future<List<Map<String, dynamic>>> getPendingAuthSyncItems() async {
-    final db = await database;
-    try {
-      return await db.query(
-        'auth_sync_queue',
-        where: 'status = ?',
-        whereArgs: ['pending'],
-        orderBy: 'created_at ASC',
-      );
-    } catch (e) {
-      AppLogger.error('Failed to get pending auth sync items', e);
-      return [];
-    }
-  }
+  // Future<List<Map<String, dynamic>>> getPendingAuthSyncItems() async {
+  //   final db = await database;
+  //   try {
+  //     return await db.query(
+  //       'auth_sync_queue',
+  //       where: 'status = ?',
+  //       whereArgs: ['pending'],
+  //       orderBy: 'created_at ASC',
+  //     );
+  //   } catch (e) {
+  //     AppLogger.error('Failed to get pending auth sync items', e);
+  //     return [];
+  //   }
+  // }
 
-  Future<int> updateAuthSyncItem(int id, Map<String, dynamic> data) async {
-    final db = await database;
-    try {
-      data['updated_at'] = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      return await db.update(
-        'auth_sync_queue',
-        data,
-        where: 'id = ?',
-        whereArgs: [id],
-      );
-    } catch (e) {
-      AppLogger.error('Failed to update auth sync item', e);
-      rethrow;
-    }
-  }
+  // Future<int> updateAuthSyncItem(int id, Map<String, dynamic> data) async {
+  //   final db = await database;
+  //   try {
+  //     data['updated_at'] = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+  //     return await db.update(
+  //       'auth_sync_queue',
+  //       data,
+  //       where: 'id = ?',
+  //       whereArgs: [id],
+  //     );
+  //   } catch (e) {
+  //     AppLogger.error('Failed to update auth sync item', e);
+  //     rethrow;
+  //   }
+  // }
 
-  Future<int> removeAuthSyncItem(int id) async {
-    final db = await database;
-    try {
-      return await db.delete(
-        'auth_sync_queue',
-        where: 'id = ?',
-        whereArgs: [id],
-      );
-    } catch (e) {
-      AppLogger.error('Failed to remove auth sync item', e);
-      rethrow;
-    }
-  }
+  //   Future<int> removeAuthSyncItem(int id) async {
+  //     final db = await database;
+  //     try {
+  //       return await db.delete(
+  //         'auth_sync_queue',
+  //         where: 'id = ?',
+  //         whereArgs: [id],
+  //       );
+  //     } catch (e) {
+  //       AppLogger.error('Failed to remove auth sync item', e);
+  //       rethrow;
+  //     }
+  //   }
 }

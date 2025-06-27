@@ -11,7 +11,7 @@ import 'core/utils/logger.dart';
 import 'core/storage/database_helper.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/services/sync_service.dart';
-import 'core/utils/auth_sync_service.dart';
+//import 'core/utils/auth_sync_service.dart';
 import 'core/utils/session_manager.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/auth/presentation/widgets/session_timeout_dialog.dart';
@@ -73,7 +73,7 @@ class MyApp extends StatelessWidget {
         // Provide global services
         RepositoryProvider.value(value: getIt<ConnectivityService>()),
         RepositoryProvider.value(value: getIt<SyncService>()),
-        RepositoryProvider.value(value: getIt<AuthSyncService>()),
+        //RepositoryProvider.value(value: getIt<AuthSyncService>()),
         RepositoryProvider.value(value: getIt<SessionManager>()),
       ],
       child: BlocBuilder<ThemeBloc, ThemeState>(

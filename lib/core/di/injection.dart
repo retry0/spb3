@@ -12,11 +12,11 @@ import '../network/dio_client.dart';
 import '../storage/secure_storage.dart';
 import '../storage/local_storage.dart';
 import '../storage/database_helper.dart';
-import '../storage/data_repository.dart';
+//import '../storage/data_repository.dart';
 import '../storage/user_profile_repository.dart';
 import '../utils/jwt_token_manager.dart';
 import '../utils/session_manager.dart';
-import '../utils/auth_sync_service.dart';
+//import '../utils/auth_sync_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/sync_service.dart';
 import '../../features/auth/data/datasources/auth_remote_datasource.dart';
@@ -74,9 +74,9 @@ Future<void> configureDependencies() async {
     () => LocalStorageImpl(getIt<SharedPreferences>(), getIt<DatabaseHelper>()),
   );
 
-  getIt.registerLazySingleton<DataRepository>(
-    () => DataRepository(getIt<DatabaseHelper>()),
-  );
+  // getIt.registerLazySingleton<DataRepository>(
+  //   () => DataRepository(getIt<DatabaseHelper>()),
+  // );
 
   // JWT Token Manager
   getIt.registerLazySingleton<JwtTokenManager>(
@@ -217,18 +217,18 @@ Future<void> configureDependencies() async {
     ),
   );
 
-  // Auth Sync Service
-  getIt.registerLazySingleton<AuthSyncService>(
-    () => AuthSyncService(
-      authRepository: getIt<AuthRepository>(),
-      refreshTokenUseCase: getIt<RefreshTokenUseCase>(),
-      connectivity: getIt<Connectivity>(),
-      secureStorage: getIt<SecureStorage>(),
-      syncInterval: const Duration(minutes: 15),
-      initialBackoffDuration: const Duration(seconds: 5),
-      maxRetryAttempts: 5,
-    ),
-  );
+  // // Auth Sync Service
+  // getIt.registerLazySingleton<AuthSyncService>(
+  //   () => AuthSyncService(
+  //     authRepository: getIt<AuthRepository>(),
+  //     refreshTokenUseCase: getIt<RefreshTokenUseCase>(),
+  //     connectivity: getIt<Connectivity>(),
+  //     secureStorage: getIt<SecureStorage>(),
+  //     syncInterval: const Duration(minutes: 15),
+  //     initialBackoffDuration: const Duration(seconds: 5),
+  //     maxRetryAttempts: 5,
+  //   ),
+  // );
 
   // BLoCs
   getIt.registerFactory(
