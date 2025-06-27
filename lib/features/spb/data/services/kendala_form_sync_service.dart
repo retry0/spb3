@@ -348,7 +348,7 @@ class KendalaFormSyncService {
       totalForms: syncedCount + pendingCount,
       syncedForms: syncedCount,
       pendingForms: pendingCount,
-      failedForms: failedCount,
+      failedCount: failedCount,
     );
   }
   
