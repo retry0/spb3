@@ -11,7 +11,7 @@ import '../../data/models/spb_model.dart';
 import '../../../../core/config/api_endpoints.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../pages/spb_page.dart';
-import '../../data/services/kendala_form_sync_service.dart';
+import '../../data/services/cek_spb_form_sync_service.dart';
 import '../widgets/kendala_sync_status_indicator.dart';
 
 class CekEspbPage extends StatefulWidget {
@@ -34,7 +34,7 @@ class _CekEspbPageState extends State<CekEspbPage>
   late Animation<double> _fadeAnimation;
   bool _isConnected = true;
   final Connectivity _connectivity = Connectivity();
-  final KendalaFormSyncService _syncService = getIt<KendalaFormSyncService>();
+  final CekFormSyncService _syncService = getIt<CekFormSyncService>();
 
   @override
   void initState() {
@@ -284,13 +284,11 @@ class _CekEspbPageState extends State<CekEspbPage>
     try {
       // Prepare data for saving
       final data = {
-        'noSPB': widget.spb.noSpb,
+        'noSPB': widget.spb.noSpb.toString(),
         'status': "1", // Set status to accepted
-        'createdBy': widget.spb.driver,
+        'createdBy': widget.spb.driver.toString(),
         'latitude': _currentPosition?.latitude.toString() ?? "0.0",
         'longitude': _currentPosition?.longitude.toString() ?? "0.0",
-        // Use string "0" for isAnyHandlingEx
-        'isAnyHandlingEx': "0",
       };
 
       if (_isConnected) {
@@ -383,7 +381,7 @@ class _CekEspbPageState extends State<CekEspbPage>
 
       // Create a unique key for this SPB
       final spbKey = 'pending_spb_${widget.spb.noSpb}';
-
+      Print('dadadad ${data}');
       // Add timestamp for syncing order
       data['timestamp'] = DateTime.now().millisecondsSinceEpoch;
 

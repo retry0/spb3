@@ -12,7 +12,7 @@ import '../../../../core/utils/logger.dart';
 
 /// Service responsible for managing the synchronization of kendala forms
 /// between local storage and the remote API.
-class KendalaFormSyncService {
+class CekFormSyncService {
   final Dio _dio;
   final int maxRetries;
   final Duration initialBackoff;
@@ -37,7 +37,7 @@ class KendalaFormSyncService {
   // Background sync timer
   Timer? _backgroundSyncTimer;
 
-  KendalaFormSyncService({
+  CekFormSyncService({
     required Dio dio,
     this.maxRetries = 3,
     this.initialBackoff = const Duration(seconds: 5),
@@ -246,28 +246,7 @@ class KendalaFormSyncService {
 
     try {
       final data = jsonDecode(formDataJson) as Map<String, dynamic>;
-      //print('cek $data');
-      // Fix the boolean conversion issue - ensure isAnyHandlingEx is properly formatted
-      // if (data.containsKey('isAnyHandlingEx')) {
-      //   // Convert to string "1" or "0" as expected by the API
-      //   if (data['isAnyHandlingEx'] is bool) {
-      //     data['isAnyHandlingEx'] =
-      //         (data['isAnyHandlingEx'] as bool) ? "1" : "0";
-      //   } else if (data['isAnyHandlingEx'] is int) {
-      //     data['isAnyHandlingEx'] =
-      //         (data['isAnyHandlingEx'] as int) > 0 ? "1" : "0";
-      //   } else if (data['isAnyHandlingEx'] is String) {
-      //     // If it's already a string, make sure it's "1" or "0"
-      //     final value = data['isAnyHandlingEx'] as String;
-      //     if (value != "0" && value != "1") {
-      //       data['isAnyHandlingEx'] =
-      //           value == "true" || value == "yes" || int.tryParse(value) == 1
-      //               ? "1"
-      //               : "0";
-      //     }
-      //   }
-      // }
-
+      print('cek DATA SPB $data');
       // Validate required fields
       _validateFormData(data);
 
@@ -278,13 +257,13 @@ class KendalaFormSyncService {
       );
 
       final response = await _dio.put(
-        ApiServiceEndpoints.AdjustSPBDriver,
+        ApiServiceEndpoints.AcceptSPBDriver,
         data: data,
         options: options,
       );
 
       if (response.statusCode == 200) {
-        await prefs.setBool('kendala_synced_$spbId', true);
+        await prefs.setBool('cek_synced_$spbId', true);
         AppLogger.info('Successfully synced kendala form for SPB: $spbId');
         return true;
       }
@@ -346,13 +325,7 @@ class KendalaFormSyncService {
 
   /// Validate form data before sending to API
   void _validateFormData(Map<String, dynamic> data) {
-    final requiredFields = [
-      'noSPB',
-      //'status',
-      'createdBy',
-      'latitude',
-      'longitude',
-    ];
+    final requiredFields = ['noSPB', 'createdBy', 'latitude', 'longitude'];
 
     for (final field in requiredFields) {
       if (!data.containsKey(field) ||
@@ -361,11 +334,6 @@ class KendalaFormSyncService {
         throw Exception('Missing required field: $field');
       }
     }
-
-    // // Validate field types
-    // if (data['status'] != "2") {
-    //   throw Exception('Invalid status value. Expected "2" for kendala forms');
-    // }
   }
 
   /// Force sync now
