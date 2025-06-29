@@ -21,16 +21,6 @@ class DioClient {
           'Accept': 'application/json',
           'X-Environment': dotenv.env['FLUTTER_ENV'],
         },
-        // // Enable/disable validation based on environment
-        // validateStatus: (status) {
-        //   if (EnvironmentConfig.isProduction) {
-        //     // Strict validation in production
-        //     return status != null && status >= 200 && status < 300;
-        //   } else {
-        //     // More lenient in development/staging for debugging
-        //     return status != null && status < 500;
-        //   }
-        // },
       ),
     );
 
@@ -39,9 +29,6 @@ class DioClient {
       AuthInterceptor(),
       CsrfInterceptor(), // Add CSRF protection
       ErrorInterceptor(),
-      // // Only add logging in development or when explicitly enabled
-      // if (EnvironmentConfig.isLoggingEnabled || kDebugMode)
-      //   LoggingInterceptor(),
     ]);
 
     return dio;
