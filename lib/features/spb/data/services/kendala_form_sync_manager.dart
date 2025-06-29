@@ -535,9 +535,7 @@ class KendalaFormSyncManager {
           final value = formData['isAnyHandlingEx'] as String;
           if (value != "0" && value != "1") {
             formData['isAnyHandlingEx'] =
-                value == "true" || value == "yes" || int.tryParse(value) == 1
-                    ? "1"
-                    : "0";
+                value == "true" || value == "yes" || value == "1" ? "1" : "0";
           }
         }
       }
@@ -587,25 +585,19 @@ class KendalaFormSyncManager {
             );
           } else {
             // Insert new record if not in database yet
-            final value = formData?['isAnyHandlingEx'] as String;
+            final isAnyHandlingExValue = formData['isAnyHandlingEx'] as String;
+            final isAnyHandlingExInt = isAnyHandlingExValue == "1" ? 1 : 0;
 
             await txn.insert('espb_form_data', {
               'no_spb': spbId,
-              'status': formData?['status'] ?? '2',
-              'created_by': formData?['createdBy'] ?? '',
-              'latitude': formData?['latitude'] ?? '0.0',
-              'longitude': formData?['longitude'] ?? '0.0',
-              'alasan': formData?['alasan'] ?? '',
-              //'is_any_handling_ex': formData?['isAnyHandlingEx'] == "1" ? 1 : 0,
-              'is_any_handling_ex':
-                  formData?['isAnyHandlingEx'] =
-                      value == "true" ||
-                              value == "yes" ||
-                              int.tryParse(value) == 1
-                          ? "1"
-                          : "0",
+              'status': formData['status'] ?? '2',
+              'created_by': formData['createdBy'] ?? '',
+              'latitude': formData['latitude'] ?? '0.0',
+              'longitude': formData['longitude'] ?? '0.0',
+              'alasan': formData['alasan'] ?? '',
+              'is_any_handling_ex': isAnyHandlingExInt,
               'timestamp':
-                  int.tryParse(formData?['timestamp'] ?? '0') ??
+                  int.tryParse(formData['timestamp'] ?? '0') ??
                   DateTime.now().millisecondsSinceEpoch ~/ 1000,
               'is_synced': 1,
               'retry_count': 0,
