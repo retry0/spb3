@@ -667,7 +667,7 @@ class KendalaFormSyncManager {
 
   /// Validate form data before sending to API
   void _validateFormData(Map<String, dynamic> data) {
-    final requiredFields = ['noSPB', 'status', 'createdBy', 'latitude', 'longitude'];
+    final requiredFields = ['noSPB', 'createdBy', 'latitude', 'longitude'];
     
     for (final field in requiredFields) {
       if (!data.containsKey(field) || data[field] == null || data[field].toString().isEmpty) {
