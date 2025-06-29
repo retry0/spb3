@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:dio/dio.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'dart:convert';
-import '../pages/spb_page.dart';
 
 import '../../../../core/di/injection.dart';
-//import '../../../../core/config/api_endpoints.dart';
 import '../../data/models/spb_model.dart';
+import '../../data/models/espb_form_model.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../data/services/cek_spb_form_sync_service.dart';
-import '../widgets/kendala_sync_status_indicator.dart';
+import '../widgets/espb_sync_status_indicator.dart';
+import '../bloc/espb_form_bloc.dart';
+import '../pages/spb_page.dart';
 
 class CekEspbPage extends StatefulWidget {
   final SpbModel spb;
@@ -31,9 +29,7 @@ class _CekEspbPageState extends State<CekEspbPage>
   Position? _currentPosition;
 
   String? _errorMessage;
-  final Dio _dio = getIt<Dio>();
   bool _isConnected = true;
-  final CekFormSyncService _syncService = getIt<CekFormSyncService>();
 
   // Animation controllers
   late AnimationController _animationController;
@@ -65,12 +61,13 @@ class _CekEspbPageState extends State<CekEspbPage>
 
     _animationController.forward();
     _checkGpsPermission();
-    //_loadSavedData();
+    _loadSavedData();
     _checkConnectivity();
   }
 
   @override
   void dispose() {
+    _animationController.dispose();
     super.dispose();
   }
 
@@ -138,25 +135,12 @@ class _CekEspbPageState extends State<CekEspbPage>
     });
   }
 
-  // Future<void> _loadSavedData() async {
-  //   try {
-  //     final prefs = await SharedPreferences.getInstance();
-  //     final spbId = widget.spb.noSpb;
-
-  //     if (mounted) {
-  //       setState(() {
-  //         _isDriverOrVehicleChanged = isDriverOrVehicleChanged;
-  //         _kendalaController.text = kendalaText;
-  //       });
-  //     }
-  //   } catch (e) {
-  //     if (mounted) {
-  //       setState(() {
-  //         _errorMessage = 'Failed to load saved data: $e';
-  //       });
-  //     }
-  //   }
-  // }
+  Future<void> _loadSavedData() async {
+    // Load data from SQLite using the bloc
+    context.read<EspbFormBloc>().add(
+      EspbFormLoadRequested(spbNumber: widget.spb.noSpb),
+    );
+  }
 
   void _showLocationServicesDisabledDialog() {
     showDialog(
@@ -322,95 +306,21 @@ class _CekEspbPageState extends State<CekEspbPage>
     });
 
     try {
-      // Prepare data for saving
-      final data = {
-        'noSPB': widget.spb.noSpb.toString(),
-        'status': 1, // Set status to accepted
-        'createdBy': widget.spb.driver.toString(),
-        'latitude': _currentPosition?.latitude.toString() ?? "0.0",
-        'longitude': _currentPosition?.longitude.toString() ?? "0.0",
-        'isAnyHandlingEx': "0", // Use string "0" instead of integer 0
-      };
-
-      // Save to sync service
-      final saveResult = await _syncService.saveForm(
-        spbId: widget.spb.noSpb,
-        formData: data,
+      // Create ESPB form model
+      final formData = EspbFormModel(
+        noSpb: widget.spb.noSpb,
+        status: "1", // Status 1 = Accept
+        createdBy: widget.spb.driver.toString(),
+        latitude: _currentPosition?.latitude.toString() ?? "0.0",
+        longitude: _currentPosition?.longitude.toString() ?? "0.0",
+        isAnyHandlingEx: "0", // Not handling exception for accept
+        timestamp: DateTime.now().millisecondsSinceEpoch,
       );
 
-      if (!saveResult) {
-        setState(() {
-          _errorMessage = 'Failed to save form data locally';
-          _isLoading = false;
-        });
-        return;
-      }
-
-      if (_isConnected) {
-        // Try to sync immediately if online
-        final syncResult = await _syncService.syncForm(widget.spb.noSpb);
-
-        if (syncResult) {
-          // Show success message
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text(
-                  'Kendala berhasil disimpan dan disinkronkan',
-                ),
-                backgroundColor: Colors.green,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                margin: const EdgeInsets.all(16),
-              ),
-            );
-          }
-        } else {
-          // Show partial success message
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text(
-                  'Kendala disimpan tetapi gagal disinkronkan. Akan dicoba lagi nanti.',
-                ),
-                backgroundColor: Colors.orange,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                margin: const EdgeInsets.all(16),
-              ),
-            );
-          }
-        }
-      } else {
-        // Show offline message
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text(
-                'Kendala disimpan secara lokal. Akan disinkronkan saat online.',
-              ),
-              backgroundColor: Colors.orange,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              margin: const EdgeInsets.all(16),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-
-      // Navigate back after successful save
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted) {
-          Navigator.of(context).pop(true); // Return true to indicate success
-        }
-      });
+      // Save using bloc
+      context.read<EspbFormBloc>().add(
+        EspbFormSaveRequested(formData: formData),
+      );
     } catch (e) {
       setState(() {
         _errorMessage = 'Error saving data: $e';
@@ -471,53 +381,137 @@ class _CekEspbPageState extends State<CekEspbPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Cek E-SPB'),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
-        ),
-      ),
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Status indicators
-                    _buildStatusIndicators(),
+    return BlocProvider(
+      create: (context) => getIt<EspbFormBloc>(),
+      child: BlocListener<EspbFormBloc, EspbFormState>(
+        listener: (context, state) {
+          if (state is EspbFormSaving) {
+            setState(() {
+              _isLoading = true;
+            });
+          } else if (state is EspbFormSaveSuccess) {
+            setState(() {
+              _isLoading = false;
+            });
+            
+            // Show success message
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  state.isSynced 
+                      ? 'SPB berhasil diterima dan disinkronkan'
+                      : 'SPB berhasil diterima dan akan disinkronkan saat online',
+                ),
+                backgroundColor: state.isSynced ? Colors.green : Colors.orange,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                margin: const EdgeInsets.all(16),
+              ),
+            );
+            
+            // Navigate back after successful save
+            Future.delayed(const Duration(seconds: 2), () {
+              if (mounted) {
+                Navigator.of(context).pop(true); // Return true to indicate success
+              }
+            });
+          } else if (state is EspbFormSaveFailure) {
+            setState(() {
+              _isLoading = false;
+              _errorMessage = state.message;
+            });
+            
+            // Show error message
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error: ${state.message}'),
+                backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                margin: const EdgeInsets.all(16),
+              ),
+            );
+          } else if (state is EspbFormLoaded) {
+            // Form already exists, show info
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  state.formData.isSynced 
+                      ? 'SPB ini sudah diterima dan disinkronkan'
+                      : 'SPB ini sudah diterima dan menunggu sinkronisasi',
+                ),
+                backgroundColor: state.formData.isSynced ? Colors.green : Colors.orange,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                margin: const EdgeInsets.all(16),
+              ),
+            );
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Cek E-SPB'),
+            centerTitle: true,
+            elevation: 0,
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ),
+          body: FadeTransition(
+            opacity: _fadeAnimation,
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: SafeArea(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Status indicators
+                        _buildStatusIndicators(),
 
-                    const SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
-                    // SPB Info Card
-                    _buildSpbInfoCard(),
+                        // SPB Info Card
+                        _buildSpbInfoCard(),
 
-                    const SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
-                    // Sync status indicator
-                    KendalaSyncStatusIndicator(
-                      spbNumber: widget.spb.noSpb,
-                      onRetry: () => _syncService.syncForm(widget.spb.noSpb),
+                        // Sync status indicator
+                        BlocBuilder<EspbFormBloc, EspbFormState>(
+                          builder: (context, state) {
+                            if (state is EspbFormLoaded) {
+                              return EspbSyncStatusIndicator(
+                                spbNumber: widget.spb.noSpb,
+                                onRetry: () => context.read<EspbFormBloc>().add(
+                                  EspbFormSyncRequested(spbNumber: widget.spb.noSpb),
+                                ),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Submit Button
+                        _buildSubmitButton(),
+                      ],
                     ),
-
-                    const SizedBox(height: 24),
-
-                    // Submit Button
-                    _buildSubmitButton(),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -719,318 +713,59 @@ class _CekEspbPageState extends State<CekEspbPage>
         ),
       ),
     );
-    // return Card(
-    //   elevation: 2,
-    //   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    //   child: Padding(
-    //     padding: const EdgeInsets.all(20),
-    //     child: Column(
-    //       crossAxisAlignment: CrossAxisAlignment.start,
-    //       children: [
-    //         Row(
-    //           children: [
-    //             Container(
-    //               padding: const EdgeInsets.all(10),
-    //               decoration: BoxDecoration(
-    //                 color: Theme.of(
-    //                   context,
-    //                 ).colorScheme.primary.withOpacity(0.1),
-    //                 borderRadius: BorderRadius.circular(12),
-    //               ),
-    //               child: Icon(
-    //                 Icons.description_outlined,
-    //                 color: Theme.of(context).colorScheme.primary,
-    //                 size: 24,
-    //               ),
-    //             ),
-    //             const SizedBox(width: 12),
-    //             Expanded(
-    //               child: Column(
-    //                 crossAxisAlignment: CrossAxisAlignment.start,
-    //                 children: [
-    //                   Text(
-    //                     'Informasi SPB',
-    //                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-    //                       fontWeight: FontWeight.bold,
-    //                     ),
-    //                   ),
-    //                   Text(
-    //                     'No. SPB: ${widget.spb.noSpb}',
-    //                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-    //                       color: Theme.of(
-    //                         context,
-    //                       ).colorScheme.onSurface.withOpacity(0.7),
-    //                     ),
-    //                   ),
-    //                 ],
-    //               ),
-    //             ),
-    //           ],
-    //         ),
-    //         const SizedBox(height: 24),
-
-    //         // Date and Time
-    //         _buildInfoGroup(
-    //           title: 'Informasi Waktu',
-    //           icon: Icons.calendar_today_rounded,
-    //           children: [
-    //             _buildInfoRow(
-    //               label: 'Tanggal Pengantaran',
-    //               value: DateFormat(
-    //                 'dd MMMM yyyy',
-    //               ).format(DateTime.parse(widget.spb.tglAntarBuah)),
-    //             ),
-    //             _buildInfoRow(
-    //               label: 'Waktu Pengantaran',
-    //               value: DateFormat(
-    //                 'HH:mm',
-    //               ).format(DateTime.parse(widget.spb.tglAntarBuah)),
-    //             ),
-    //           ],
-    //         ),
-
-    //         const Divider(height: 32),
-
-    //         // Vendor and Destination
-    //         _buildInfoGroup(
-    //           title: 'Informasi Pengiriman',
-    //           icon: Icons.local_shipping_rounded,
-    //           children: [
-    //             _buildInfoRow(
-    //               label: 'Vendor',
-    //               value: widget.spb.kodeVendor ?? 'N/A',
-    //             ),
-    //             _buildInfoRow(
-    //               label: 'Tujuan Pengantaran',
-    //               value: widget.spb.millTujuanName ?? 'N/A',
-    //             ),
-    //           ],
-    //         ),
-
-    //         const Divider(height: 32),
-
-    //         // Driver and Vehicle
-    //         _buildInfoGroup(
-    //           title: 'Informasi Kendaraan',
-    //           icon: Icons.person_outline_rounded,
-    //           children: [
-    //             _buildInfoRow(
-    //               label: 'Driver',
-    //               value: widget.spb.driver ?? 'N/A',
-    //             ),
-    //             _buildInfoRow(
-    //               label: 'No Polisi Truk',
-    //               value: widget.spb.noPolisi ?? 'N/A',
-    //             ),
-    //           ],
-    //         ),
-    //       ],
-    //     ),
-    //   ),
-    // );
-  }
-
-  Widget _buildKendalaFormCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppTheme.errorColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.report_problem_outlined,
-                    color: AppTheme.errorColor,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Keterangan Kendala',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Checkbox for driver/vehicle change
-            Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color:
-                      _isDriverOrVehicleChanged
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(
-                            context,
-                          ).colorScheme.outline.withOpacity(0.5),
-                ),
-              ),
-              child: CheckboxListTile(
-                title: const Text('Ada pergantian driver atau kendaraan'),
-                subtitle: const Text(
-                  'Centang jika terjadi pergantian driver atau kendaraan',
-                ),
-                value: _isDriverOrVehicleChanged,
-                onChanged: (value) {
-                  setState(() {
-                    _isDriverOrVehicleChanged = value ?? false;
-                    // Clear error message when checkbox changes
-                    _errorMessage = null;
-                  });
-                },
-                activeColor: Theme.of(context).colorScheme.primary,
-                checkColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                controlAffinity: ListTileControlAffinity.leading,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Disclaimer text
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    size: 16,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Laporan kendala akan diteruskan ke admin untuk ditindaklanjuti',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildSubmitButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : _showConfirmationDialog,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: Colors.grey.shade300,
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        child:
-            _isLoading
-                ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  ),
-                )
-                : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.check_circle_outline_rounded,
-                      color: _isGpsActive ? Colors.white : Colors.grey.shade400,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Terima SPB',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+    return BlocBuilder<EspbFormBloc, EspbFormState>(
+      builder: (context, state) {
+        final bool isFormLoaded = state is EspbFormLoaded;
+        final bool isFormSaving = state is EspbFormSaving;
+        
+        return SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton(
+            onPressed: isFormLoaded || isFormSaving || _isLoading ? null : _showConfirmationDialog,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: Colors.grey.shade300,
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child:
+                isFormSaving || _isLoading
+                    ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
                       ),
+                    )
+                    : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline_rounded,
+                          color: _isGpsActive ? Colors.white : Colors.grey.shade400,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          isFormLoaded ? 'SPB Sudah Diterima' : 'Terima SPB',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-      ),
+          ),
+        );
+      },
     );
-    // return SizedBox(
-    //   width: double.infinity,
-    //   height: 56,
-    //   child: ElevatedButton(
-    //     onPressed: _isLoading ? null : _showConfirmationDialog,
-    //     style: ElevatedButton.styleFrom(
-    //       backgroundColor: AppTheme.errorColor,
-    //       foregroundColor: Colors.white,
-    //       disabledBackgroundColor: Colors.grey.shade300,
-    //       elevation: 2,
-    //       shape: RoundedRectangleBorder(
-    //         borderRadius: BorderRadius.circular(12),
-    //       ),
-    //     ),
-    //     child:
-    //         _isLoading
-    //             ? const SizedBox(
-    //               width: 24,
-    //               height: 24,
-    //               child: CircularProgressIndicator(
-    //                 color: Colors.white,
-    //                 strokeWidth: 2,
-    //               ),
-    //             )
-    //             : Row(
-    //               mainAxisAlignment: MainAxisAlignment.center,
-    //               children: [
-    //                 Icon(
-    //                   Icons.report_problem_outlined,
-    //                   color:
-    //                       _isDriverOrVehicleChanged && _isGpsActive
-    //                           ? Colors.white
-    //                           : Colors.grey.shade400,
-    //                 ),
-    //                 const SizedBox(width: 8),
-    //                 Text(
-    //                   'Simpan Kendala',
-    //                   style: const TextStyle(
-    //                     fontSize: 16,
-    //                     fontWeight: FontWeight.bold,
-    //                   ),
-    //                 ),
-    //               ],
-    //             ),
-    //   ),
-    // );
   }
 
   Widget _buildStatusCard({
