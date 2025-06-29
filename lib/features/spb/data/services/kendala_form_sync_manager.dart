@@ -277,7 +277,7 @@ class KendalaFormSyncManager {
           'latitude': dbData['latitude'] as String,
           'longitude': dbData['longitude'] as String,
           'alasan': dbData['alasan'] as String?,
-          'isAnyHandlingEx': (dbData['is_any_handling_ex'] as int) == 1,
+          'isAnyHandlingEx': (dbData['is_any_handling_ex'] as int) == 1 ? "1" : "0",
           'timestamp': dbData['timestamp'] as int,
           'isSynced': (dbData['is_synced'] as int) == 1,
           'retryCount': dbData['retry_count'] as int,
@@ -301,7 +301,7 @@ class KendalaFormSyncManager {
       return {
         ...data,
         'alasan': kendalaText,
-        'isAnyHandlingEx': isDriverChanged,
+        'isAnyHandlingEx': isDriverChanged ? "1" : "0",
         'isSynced': isSynced,
       };
     } catch (e) {
@@ -490,6 +490,21 @@ class KendalaFormSyncManager {
         // Add missing fields
         formData['alasan'] = kendalaText;
         formData['isAnyHandlingEx'] = isDriverChanged ? "1" : "0";
+      }
+      
+      // Ensure isAnyHandlingEx is properly formatted as string "1" or "0"
+      if (formData.containsKey('isAnyHandlingEx')) {
+        if (formData['isAnyHandlingEx'] is bool) {
+          formData['isAnyHandlingEx'] = (formData['isAnyHandlingEx'] as bool) ? "1" : "0";
+        } else if (formData['isAnyHandlingEx'] is int) {
+          formData['isAnyHandlingEx'] = (formData['isAnyHandlingEx'] as int) > 0 ? "1" : "0";
+        } else if (formData['isAnyHandlingEx'] is String) {
+          // If it's already a string, make sure it's "1" or "0"
+          final value = formData['isAnyHandlingEx'] as String;
+          if (value != "0" && value != "1") {
+            formData['isAnyHandlingEx'] = value == "true" || value == "yes" || int.tryParse(value) == 1 ? "1" : "0";
+          }
+        }
       }
       
       // Validate required fields
