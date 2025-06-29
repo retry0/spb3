@@ -471,7 +471,7 @@ class KendalaFormSyncManager {
           'longitude': dbData['longitude'] as String,
           'alasan': dbData['alasan'] as String?,
           'isAnyHandlingEx': (dbData['is_any_handling_ex'] as int) == 1 ? "1" : "0",
-          'timestamp': dbData['timestamp'] as int,
+          'timestamp': dbData['timestamp'].toString(), // Convert to String to avoid type casting issues
         };
       } else {
         // Fallback to SharedPreferences
@@ -490,6 +490,11 @@ class KendalaFormSyncManager {
         // Add missing fields
         formData['alasan'] = kendalaText;
         formData['isAnyHandlingEx'] = isDriverChanged ? "1" : "0";
+        
+        // Ensure timestamp is a string
+        if (formData.containsKey('timestamp') && formData['timestamp'] is int) {
+          formData['timestamp'] = formData['timestamp'].toString();
+        }
       }
       
       // Ensure isAnyHandlingEx is properly formatted as string "1" or "0"
@@ -560,7 +565,7 @@ class KendalaFormSyncManager {
               'longitude': formData['longitude'] ?? '0.0',
               'alasan': formData['alasan'] ?? '',
               'is_any_handling_ex': formData['isAnyHandlingEx'] == "1" ? 1 : 0,
-              'timestamp': formData['timestamp'] ?? now,
+              'timestamp': int.tryParse(formData['timestamp'] ?? '0') ?? DateTime.now().millisecondsSinceEpoch ~/ 1000,
               'is_synced': 1,
               'retry_count': 0,
               'last_error': null,
