@@ -23,8 +23,11 @@ class KendalaFormSyncManager {
   // Status notifiers
   final ValueNotifier<SyncStatus> syncStatusNotifier =
       ValueNotifier<SyncStatus>(SyncStatus.idle);
-  final ValueNotifier<String?> errorMessageNotifier = ValueNotifier<String?>(null);
-  final ValueNotifier<DateTime?> lastSyncTimeNotifier = ValueNotifier<DateTime?>(null);
+  final ValueNotifier<String?> errorMessageNotifier = ValueNotifier<String?>(
+    null,
+  );
+  final ValueNotifier<DateTime?> lastSyncTimeNotifier =
+      ValueNotifier<DateTime?>(null);
 
   // Connectivity
   final Connectivity _connectivity = Connectivity();
@@ -46,7 +49,7 @@ class KendalaFormSyncManager {
        _dbHelper = dbHelper {
     // Initialize connectivity monitoring
     _initConnectivityMonitoring();
-    
+
     // Start background sync timer
     _startBackgroundSync();
   }
@@ -58,7 +61,9 @@ class KendalaFormSyncManager {
     _updateConnectivityStatus(connectivityResult);
 
     // Listen for connectivity changes
-    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((result) {
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((
+      result,
+    ) {
       _updateConnectivityStatus(result);
     });
   }
@@ -66,11 +71,14 @@ class KendalaFormSyncManager {
   /// Update connectivity status
   void _updateConnectivityStatus(List<ConnectivityResult> result) {
     final wasConnected = _isConnected;
-    _isConnected = result.isNotEmpty && !result.contains(ConnectivityResult.none);
+    _isConnected =
+        result.isNotEmpty && !result.contains(ConnectivityResult.none);
 
     // If we just got connected, trigger a sync
     if (!wasConnected && _isConnected) {
-      AppLogger.info('Network connection restored, triggering kendala form sync');
+      AppLogger.info(
+        'Network connection restored, triggering kendala form sync',
+      );
       syncPendingForms();
     }
   }
@@ -88,28 +96,32 @@ class KendalaFormSyncManager {
     try {
       final prefs = await SharedPreferences.getInstance();
       final pendingForms = prefs.getStringList('pending_kendala_forms') ?? [];
-      
+
       if (pendingForms.isEmpty) return true;
-      
-      AppLogger.info('Migrating ${pendingForms.length} forms from SharedPreferences to SQLite');
-      
+
+      AppLogger.info(
+        'Migrating ${pendingForms.length} forms from SharedPreferences to SQLite',
+      );
+
       int successCount = 0;
-      
+
       for (final spbId in pendingForms) {
         try {
           // Get form data from SharedPreferences
           final formDataJson = prefs.getString('kendala_form_data_$spbId');
-          final isDriverChanged = prefs.getBool('kendala_driver_changed_$spbId') ?? false;
+          final isDriverChanged =
+              prefs.getBool('kendala_driver_changed_$spbId') ?? false;
           final kendalaText = prefs.getString('kendala_text_$spbId') ?? '';
           final isSynced = prefs.getBool('kendala_synced_$spbId') ?? false;
-          final modifiedTime = prefs.getInt('kendala_modified_$spbId') ?? 
+          final modifiedTime =
+              prefs.getInt('kendala_modified_$spbId') ??
               DateTime.now().millisecondsSinceEpoch;
-          
+
           if (formDataJson == null) continue;
-          
+
           // Parse form data
           final data = jsonDecode(formDataJson) as Map<String, dynamic>;
-          
+
           // Create database record
           await _dbHelper.transaction((txn) async {
             // Check if record already exists
@@ -119,9 +131,9 @@ class KendalaFormSyncManager {
               whereArgs: [spbId],
               limit: 1,
             );
-            
+
             final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-            
+
             if (existingRecords.isEmpty) {
               // Insert new record
               await txn.insert('espb_form_data', {
@@ -159,14 +171,16 @@ class KendalaFormSyncManager {
               );
             }
           });
-          
+
           successCount++;
         } catch (e) {
           AppLogger.error('Failed to migrate form $spbId: $e');
         }
       }
-      
-      AppLogger.info('Successfully migrated $successCount/${pendingForms.length} forms to database');
+
+      AppLogger.info(
+        'Successfully migrated $successCount/${pendingForms.length} forms to database',
+      );
       return successCount == pendingForms.length;
     } catch (e) {
       AppLogger.error('Failed to migrate forms to database: $e');
@@ -184,21 +198,21 @@ class KendalaFormSyncManager {
     try {
       final prefs = await SharedPreferences.getInstance();
       final now = DateTime.now().millisecondsSinceEpoch;
-      
+
       // Save to SharedPreferences for backward compatibility
       await prefs.setString('kendala_form_data_$spbId', jsonEncode(formData));
       await prefs.setBool('kendala_driver_changed_$spbId', isDriverChanged);
       await prefs.setString('kendala_text_$spbId', kendalaText);
       await prefs.setBool('kendala_synced_$spbId', false);
       await prefs.setInt('kendala_modified_$spbId', now);
-      
+
       // Update pending forms list in SharedPreferences
       final pendingForms = prefs.getStringList('pending_kendala_forms') ?? [];
       if (!pendingForms.contains(spbId)) {
         pendingForms.add(spbId);
         await prefs.setStringList('pending_kendala_forms', pendingForms);
       }
-      
+
       // Save to SQLite database
       await _dbHelper.transaction((txn) async {
         // Check if record already exists
@@ -208,9 +222,9 @@ class KendalaFormSyncManager {
           whereArgs: [spbId],
           limit: 1,
         );
-        
+
         final nowSeconds = now ~/ 1000;
-        
+
         if (existingRecords.isEmpty) {
           // Insert new record
           await txn.insert('espb_form_data', {
@@ -248,7 +262,7 @@ class KendalaFormSyncManager {
           );
         }
       });
-      
+
       AppLogger.info('Kendala form saved locally for SPB: $spbId');
       return true;
     } catch (e) {
@@ -267,7 +281,7 @@ class KendalaFormSyncManager {
         whereArgs: [spbId],
         limit: 1,
       );
-      
+
       if (results.isNotEmpty) {
         final dbData = results.first;
         return {
@@ -277,7 +291,8 @@ class KendalaFormSyncManager {
           'latitude': dbData['latitude'] as String,
           'longitude': dbData['longitude'] as String,
           'alasan': dbData['alasan'] as String?,
-          'isAnyHandlingEx': (dbData['is_any_handling_ex'] as int) == 1 ? "1" : "0",
+          'isAnyHandlingEx':
+              (dbData['is_any_handling_ex'] as int) == 1 ? "1" : "0",
           'timestamp': dbData['timestamp'] as int,
           'isSynced': (dbData['is_synced'] as int) == 1,
           'retryCount': dbData['retry_count'] as int,
@@ -286,18 +301,19 @@ class KendalaFormSyncManager {
           'updatedAt': dbData['updated_at'] as int,
         };
       }
-      
+
       // Fallback to SharedPreferences for backward compatibility
       final prefs = await SharedPreferences.getInstance();
       final formDataJson = prefs.getString('kendala_form_data_$spbId');
-      
+
       if (formDataJson == null) return null;
-      
+
       final data = jsonDecode(formDataJson) as Map<String, dynamic>;
-      final isDriverChanged = prefs.getBool('kendala_driver_changed_$spbId') ?? false;
+      final isDriverChanged =
+          prefs.getBool('kendala_driver_changed_$spbId') ?? false;
       final kendalaText = prefs.getString('kendala_text_$spbId') ?? '';
       final isSynced = prefs.getBool('kendala_synced_$spbId') ?? false;
-      
+
       return {
         ...data,
         'alasan': kendalaText,
@@ -321,11 +337,11 @@ class KendalaFormSyncManager {
         whereArgs: [spbId],
         limit: 1,
       );
-      
+
       if (results.isNotEmpty) {
         return (results.first['is_synced'] as int) == 1;
       }
-      
+
       // Fallback to SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       return prefs.getBool('kendala_synced_$spbId') ?? false;
@@ -339,7 +355,7 @@ class KendalaFormSyncManager {
   Future<List<String>> getPendingForms() async {
     try {
       final Set<String> pendingForms = {};
-      
+
       // Get from SQLite database
       final results = await _dbHelper.query(
         'espb_form_data',
@@ -347,17 +363,17 @@ class KendalaFormSyncManager {
         where: 'is_synced = ?',
         whereArgs: [0],
       );
-      
+
       for (final row in results) {
         pendingForms.add(row['no_spb'] as String);
       }
-      
+
       // Get from SharedPreferences for backward compatibility
       final prefs = await SharedPreferences.getInstance();
       final prefsForms = prefs.getStringList('pending_kendala_forms') ?? [];
-      
+
       pendingForms.addAll(prefsForms);
-      
+
       return pendingForms.toList();
     } catch (e) {
       AppLogger.error('Error getting pending forms: $e');
@@ -382,7 +398,7 @@ class KendalaFormSyncManager {
     try {
       // Get pending forms from both sources
       final pendingForms = await getPendingForms();
-      
+
       if (pendingForms.isEmpty) {
         _isSyncing = false;
         if (!silent) {
@@ -391,12 +407,12 @@ class KendalaFormSyncManager {
         }
         return true;
       }
-      
+
       AppLogger.info('Syncing ${pendingForms.length} pending kendala forms');
-      
+
       bool allSynced = true;
       List<String> successfullySync = [];
-      
+
       for (final spbId in pendingForms) {
         final success = await _syncForm(spbId);
         if (success) {
@@ -405,15 +421,19 @@ class KendalaFormSyncManager {
           allSynced = false;
         }
       }
-      
+
       // Update pending forms list in SharedPreferences
       if (successfullySync.isNotEmpty) {
         final prefs = await SharedPreferences.getInstance();
-        final prefsPendingForms = prefs.getStringList('pending_kendala_forms') ?? [];
-        final updatedPendingForms = prefsPendingForms.where((spbId) => !successfullySync.contains(spbId)).toList();
+        final prefsPendingForms =
+            prefs.getStringList('pending_kendala_forms') ?? [];
+        final updatedPendingForms =
+            prefsPendingForms
+                .where((spbId) => !successfullySync.contains(spbId))
+                .toList();
         await prefs.setStringList('pending_kendala_forms', updatedPendingForms);
       }
-      
+
       // Update sync status
       if (!silent) {
         if (allSynced) {
@@ -421,11 +441,12 @@ class KendalaFormSyncManager {
           errorMessageNotifier.value = null;
         } else {
           syncStatusNotifier.value = SyncStatus.failed;
-          errorMessageNotifier.value = 'Some forms failed to sync. Will retry later.';
+          errorMessageNotifier.value =
+              'Some forms failed to sync. Will retry later.';
         }
         lastSyncTimeNotifier.value = DateTime.now();
       }
-      
+
       _isSyncing = false;
       return allSynced;
     } catch (e) {
@@ -444,7 +465,7 @@ class KendalaFormSyncManager {
     if (!_isConnected) {
       return false;
     }
-    
+
     return _syncForm(spbId);
   }
 
@@ -458,9 +479,9 @@ class KendalaFormSyncManager {
         whereArgs: [spbId],
         limit: 1,
       );
-      
+
       Map<String, dynamic>? formData;
-      
+
       if (results.isNotEmpty) {
         final dbData = results.first;
         formData = {
@@ -470,64 +491,73 @@ class KendalaFormSyncManager {
           'latitude': dbData['latitude'] as String,
           'longitude': dbData['longitude'] as String,
           'alasan': dbData['alasan'] as String?,
-          'isAnyHandlingEx': (dbData['is_any_handling_ex'] as int) == 1 ? "1" : "0",
-          'timestamp': dbData['timestamp'].toString(), // Convert to String to avoid type casting issues
+          'isAnyHandlingEx':
+              (dbData['is_any_handling_ex'] as int) == 1 ? "1" : "0",
+          'timestamp':
+              dbData['timestamp']
+                  .toString(), // Convert to String to avoid type casting issues
         };
       } else {
         // Fallback to SharedPreferences
         final prefs = await SharedPreferences.getInstance();
         final formDataJson = prefs.getString('kendala_form_data_$spbId');
-        
+
         if (formDataJson == null) {
           AppLogger.warning('No form data found for SPB: $spbId');
           return false;
         }
-        
+
         formData = jsonDecode(formDataJson) as Map<String, dynamic>;
-        final isDriverChanged = prefs.getBool('kendala_driver_changed_$spbId') ?? false;
+        final isDriverChanged =
+            prefs.getBool('kendala_driver_changed_$spbId') ?? false;
         final kendalaText = prefs.getString('kendala_text_$spbId') ?? '';
-        
+
         // Add missing fields
         formData['alasan'] = kendalaText;
         formData['isAnyHandlingEx'] = isDriverChanged ? "1" : "0";
-        
+
         // Ensure timestamp is a string
         if (formData.containsKey('timestamp') && formData['timestamp'] is int) {
           formData['timestamp'] = formData['timestamp'].toString();
         }
       }
-      
+
       // Ensure isAnyHandlingEx is properly formatted as string "1" or "0"
       if (formData.containsKey('isAnyHandlingEx')) {
         if (formData['isAnyHandlingEx'] is bool) {
-          formData['isAnyHandlingEx'] = (formData['isAnyHandlingEx'] as bool) ? "1" : "0";
+          formData['isAnyHandlingEx'] =
+              (formData['isAnyHandlingEx'] as bool) ? "1" : "0";
         } else if (formData['isAnyHandlingEx'] is int) {
-          formData['isAnyHandlingEx'] = (formData['isAnyHandlingEx'] as int) > 0 ? "1" : "0";
+          formData['isAnyHandlingEx'] =
+              (formData['isAnyHandlingEx'] as int) > 0 ? "1" : "0";
         } else if (formData['isAnyHandlingEx'] is String) {
           // If it's already a string, make sure it's "1" or "0"
           final value = formData['isAnyHandlingEx'] as String;
           if (value != "0" && value != "1") {
-            formData['isAnyHandlingEx'] = value == "true" || value == "yes" || int.tryParse(value) == 1 ? "1" : "0";
+            formData['isAnyHandlingEx'] =
+                value == "true" || value == "yes" || int.tryParse(value) == 1
+                    ? "1"
+                    : "0";
           }
         }
       }
-      
+
       // Validate required fields
       _validateFormData(formData);
-      
+
       // Set timeout for API request
       final options = Options(
         sendTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 30),
       );
-      
+
       // Make API request
       final response = await _dio.put(
         ApiServiceEndpoints.AdjustSPBDriver,
         data: formData,
         options: options,
       );
-      
+
       if (response.statusCode == 200) {
         // Update sync status in database
         await _dbHelper.transaction((txn) async {
@@ -539,9 +569,9 @@ class KendalaFormSyncManager {
             whereArgs: [spbId],
             limit: 1,
           );
-          
+
           final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-          
+
           if (existingRecords.isNotEmpty) {
             // Update existing record
             await txn.update(
@@ -557,15 +587,26 @@ class KendalaFormSyncManager {
             );
           } else {
             // Insert new record if not in database yet
+            final value = formData?['isAnyHandlingEx'] as String;
+
             await txn.insert('espb_form_data', {
               'no_spb': spbId,
-              'status': formData['status'] ?? '2',
-              'created_by': formData['createdBy'] ?? '',
-              'latitude': formData['latitude'] ?? '0.0',
-              'longitude': formData['longitude'] ?? '0.0',
-              'alasan': formData['alasan'] ?? '',
-              'is_any_handling_ex': formData['isAnyHandlingEx'] == "1" ? 1 : 0,
-              'timestamp': int.tryParse(formData['timestamp'] ?? '0') ?? DateTime.now().millisecondsSinceEpoch ~/ 1000,
+              'status': formData?['status'] ?? '2',
+              'created_by': formData?['createdBy'] ?? '',
+              'latitude': formData?['latitude'] ?? '0.0',
+              'longitude': formData?['longitude'] ?? '0.0',
+              'alasan': formData?['alasan'] ?? '',
+              //'is_any_handling_ex': formData?['isAnyHandlingEx'] == "1" ? 1 : 0,
+              'is_any_handling_ex':
+                  formData?['isAnyHandlingEx'] =
+                      value == "true" ||
+                              value == "yes" ||
+                              int.tryParse(value) == 1
+                          ? "1"
+                          : "0",
+              'timestamp':
+                  int.tryParse(formData?['timestamp'] ?? '0') ??
+                  DateTime.now().millisecondsSinceEpoch ~/ 1000,
               'is_synced': 1,
               'retry_count': 0,
               'last_error': null,
@@ -574,35 +615,45 @@ class KendalaFormSyncManager {
             });
           }
         });
-        
+
         // Update sync status in SharedPreferences for backward compatibility
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('kendala_synced_$spbId', true);
-        
+
         AppLogger.info('Successfully synced kendala form for SPB: $spbId');
         return true;
       }
-      
-      AppLogger.warning('Failed to sync kendala form for SPB: $spbId. Status: ${response.statusCode}');
-      
+
+      AppLogger.warning(
+        'Failed to sync kendala form for SPB: $spbId. Status: ${response.statusCode}',
+      );
+
       // Update retry count in database
-      await _updateRetryCount(spbId, retryCount, 'API returned status ${response.statusCode}');
-      
+      await _updateRetryCount(
+        spbId,
+        retryCount,
+        'API returned status ${response.statusCode}',
+      );
+
       // Retry logic
       if (retryCount < maxRetries) {
         final backoff = initialBackoff * pow(2, retryCount);
-        AppLogger.info('Retrying sync for SPB: $spbId in ${backoff.inSeconds} seconds (attempt ${retryCount + 1}/$maxRetries)');
+        AppLogger.info(
+          'Retrying sync for SPB: $spbId in ${backoff.inSeconds} seconds (attempt ${retryCount + 1}/$maxRetries)',
+        );
         await Future.delayed(backoff);
         return _syncForm(spbId, retryCount: retryCount + 1);
       }
-      
+
       return false;
     } on DioException catch (e) {
-      AppLogger.error('DioException syncing form $spbId (attempt ${retryCount + 1}): ${e.message}');
-      
+      AppLogger.error(
+        'DioException syncing form $spbId (attempt ${retryCount + 1}): ${e.message}',
+      );
+
       // Update retry count in database
       await _updateRetryCount(spbId, retryCount, 'Network error: ${e.message}');
-      
+
       // Retry for certain error types
       if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.sendTimeout ||
@@ -610,33 +661,43 @@ class KendalaFormSyncManager {
           e.type == DioExceptionType.connectionError) {
         if (retryCount < maxRetries) {
           final backoff = initialBackoff * pow(2, retryCount);
-          AppLogger.info('Retrying sync for SPB: $spbId in ${backoff.inSeconds} seconds (attempt ${retryCount + 1}/$maxRetries)');
+          AppLogger.info(
+            'Retrying sync for SPB: $spbId in ${backoff.inSeconds} seconds (attempt ${retryCount + 1}/$maxRetries)',
+          );
           await Future.delayed(backoff);
           return _syncForm(spbId, retryCount: retryCount + 1);
         }
       }
-      
+
       return false;
     } catch (e) {
-      AppLogger.error('Error syncing form $spbId (attempt ${retryCount + 1}): $e');
-      
+      AppLogger.error(
+        'Error syncing form $spbId (attempt ${retryCount + 1}): $e',
+      );
+
       // Update retry count in database
       await _updateRetryCount(spbId, retryCount, 'Error: $e');
-      
+
       // Retry for general errors
       if (retryCount < maxRetries) {
         final backoff = initialBackoff * pow(2, retryCount);
-        AppLogger.info('Retrying sync for SPB: $spbId in ${backoff.inSeconds} seconds (attempt ${retryCount + 1}/$maxRetries)');
+        AppLogger.info(
+          'Retrying sync for SPB: $spbId in ${backoff.inSeconds} seconds (attempt ${retryCount + 1}/$maxRetries)',
+        );
         await Future.delayed(backoff);
         return _syncForm(spbId, retryCount: retryCount + 1);
       }
-      
+
       return false;
     }
   }
 
   /// Update retry count in database
-  Future<void> _updateRetryCount(String spbId, int currentRetryCount, String errorMessage) async {
+  Future<void> _updateRetryCount(
+    String spbId,
+    int currentRetryCount,
+    String errorMessage,
+  ) async {
     try {
       await _dbHelper.transaction((txn) async {
         // Check if record exists in database
@@ -647,10 +708,10 @@ class KendalaFormSyncManager {
           whereArgs: [spbId],
           limit: 1,
         );
-        
+
         final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
         final newRetryCount = currentRetryCount + 1;
-        
+
         if (existingRecords.isNotEmpty) {
           // Update existing record
           await txn.update(
@@ -673,9 +734,11 @@ class KendalaFormSyncManager {
   /// Validate form data before sending to API
   void _validateFormData(Map<String, dynamic> data) {
     final requiredFields = ['noSPB', 'createdBy', 'latitude', 'longitude'];
-    
+
     for (final field in requiredFields) {
-      if (!data.containsKey(field) || data[field] == null || data[field].toString().isEmpty) {
+      if (!data.containsKey(field) ||
+          data[field] == null ||
+          data[field].toString().isEmpty) {
         throw Exception('Missing required field: $field');
       }
     }
@@ -692,17 +755,17 @@ class KendalaFormSyncManager {
       int syncedCount = 0;
       int pendingCount = 0;
       int failedCount = 0;
-      
+
       // Get stats from database
       final results = await _dbHelper.query(
         'espb_form_data',
         columns: ['is_synced', 'retry_count'],
       );
-      
+
       for (final row in results) {
         final isSynced = (row['is_synced'] as int) == 1;
         final retryCount = row['retry_count'] as int;
-        
+
         if (isSynced) {
           syncedCount++;
         } else {
@@ -712,11 +775,11 @@ class KendalaFormSyncManager {
           }
         }
       }
-      
+
       // Get stats from SharedPreferences for backward compatibility
       final prefs = await SharedPreferences.getInstance();
       final prefsForms = prefs.getStringList('pending_kendala_forms') ?? [];
-      
+
       for (final spbId in prefsForms) {
         final isSynced = prefs.getBool('kendala_synced_$spbId') ?? false;
         if (isSynced) {
@@ -726,7 +789,7 @@ class KendalaFormSyncManager {
           pendingCount++;
         }
       }
-      
+
       return SyncStats(
         totalForms: syncedCount + pendingCount,
         syncedForms: syncedCount,
@@ -749,20 +812,26 @@ class KendalaFormSyncManager {
     try {
       // Clear database records
       await _dbHelper.delete('espb_form_data');
-      
+
       // Clear SharedPreferences data
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Get all keys related to kendala forms
-      final keys = prefs.getKeys().where(
-        (key) => key.startsWith('kendala_') || key == 'pending_kendala_forms',
-      ).toList();
-      
+      final keys =
+          prefs
+              .getKeys()
+              .where(
+                (key) =>
+                    key.startsWith('kendala_') ||
+                    key == 'pending_kendala_forms',
+              )
+              .toList();
+
       // Remove all keys
       for (final key in keys) {
         await prefs.remove(key);
       }
-      
+
       AppLogger.info('Cleared all kendala form sync data');
     } catch (e) {
       AppLogger.error('Failed to clear sync data: $e');
@@ -788,13 +857,14 @@ class SyncStats {
   final int syncedForms;
   final int pendingForms;
   final int failedCount;
-  
+
   SyncStats({
     required this.totalForms,
     required this.syncedForms,
     required this.pendingForms,
     required this.failedCount,
   });
-  
-  double get syncPercentage => totalForms > 0 ? (syncedForms / totalForms) * 100 : 0;
+
+  double get syncPercentage =>
+      totalForms > 0 ? (syncedForms / totalForms) * 100 : 0;
 }
