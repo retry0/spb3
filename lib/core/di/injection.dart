@@ -12,6 +12,7 @@ import '../network/dio_client.dart';
 import '../storage/secure_storage.dart';
 import '../storage/local_storage.dart';
 import '../storage/database_helper.dart';
+//import '../storage/data_repository.dart';
 import '../storage/user_profile_repository.dart';
 import '../utils/jwt_token_manager.dart';
 import '../utils/session_manager.dart';
@@ -44,19 +45,6 @@ import '../../features/spb/presentation/bloc/spb_bloc.dart';
 import '../../features/spb/data/services/kendala_form_sync_service.dart';
 import '../../features/spb/data/services/cek_spb_form_sync_service.dart';
 
-// New imports for ESPB
-import '../../features/spb/data/datasources/espb_local_datasource.dart';
-import '../../features/spb/data/datasources/espb_remote_datasource.dart';
-import '../../features/spb/data/repositories/espb_repository_impl.dart';
-import '../../features/spb/domain/repositories/espb_repository.dart';
-import '../../features/spb/domain/usecases/save_espb_form_usecase.dart';
-import '../../features/spb/domain/usecases/get_espb_form_usecase.dart';
-import '../../features/spb/domain/usecases/sync_espb_form_usecase.dart';
-import '../../features/spb/domain/usecases/sync_all_pending_espb_forms_usecase.dart';
-import '../../features/spb/domain/usecases/migrate_espb_forms_usecase.dart';
-import '../../features/spb/data/services/espb_sync_service.dart';
-import '../../features/spb/presentation/bloc/espb_form_bloc.dart';
-
 final getIt = GetIt.instance;
 
 @InjectableInit()
@@ -84,6 +72,10 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton<LocalStorage>(
     () => LocalStorageImpl(getIt<SharedPreferences>(), getIt<DatabaseHelper>()),
   );
+
+  // getIt.registerLazySingleton<DataRepository>(
+  //   () => DataRepository(getIt<DatabaseHelper>()),
+  // );
 
   // JWT Token Manager
   getIt.registerLazySingleton<JwtTokenManager>(
@@ -163,15 +155,6 @@ Future<void> configureDependencies() async {
     () => SpbLocalDataSourceImpl(dbHelper: getIt<DatabaseHelper>()),
   );
 
-  // ESPB data sources
-  getIt.registerLazySingleton<EspbLocalDataSource>(
-    () => EspbLocalDataSourceImpl(dbHelper: getIt<DatabaseHelper>()),
-  );
-
-  getIt.registerLazySingleton<EspbRemoteDataSource>(
-    () => EspbRemoteDataSourceImpl(dio: getIt<Dio>()),
-  );
-
   // Repositories
   getIt.registerLazySingleton<AuthRepository>(
     () => AuthRepositoryImpl(
@@ -206,15 +189,6 @@ Future<void> configureDependencies() async {
     ),
   );
 
-  // ESPB repository
-  getIt.registerLazySingleton<EspbRepository>(
-    () => EspbRepositoryImpl(
-      localDataSource: getIt<EspbLocalDataSource>(),
-      remoteDataSource: getIt<EspbRemoteDataSource>(),
-      connectivity: getIt<Connectivity>(),
-    ),
-  );
-
   // Use cases
   getIt.registerLazySingleton(() => LoginUseCase(getIt<AuthRepository>()));
   getIt.registerLazySingleton(() => LogoutUseCase(getIt<AuthRepository>()));
@@ -232,13 +206,6 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton(() => SyncSpbDataUseCase(getIt<SpbRepository>()));
   getIt.registerLazySingleton(() => GenerateSpbQrCodeUseCase());
 
-  // ESPB use cases
-  getIt.registerLazySingleton(() => SaveEspbFormUseCase(getIt<EspbRepository>()));
-  getIt.registerLazySingleton(() => GetEspbFormUseCase(getIt<EspbRepository>()));
-  getIt.registerLazySingleton(() => SyncEspbFormUseCase(getIt<EspbRepository>()));
-  getIt.registerLazySingleton(() => SyncAllPendingEspbFormsUseCase(getIt<EspbRepository>()));
-  getIt.registerLazySingleton(() => MigrateEspbFormsUseCase(getIt<EspbRepository>()));
-
   // Session Manager
   getIt.registerLazySingleton<SessionManager>(
     () => SessionManager(
@@ -248,18 +215,6 @@ Future<void> configureDependencies() async {
       sessionTimeoutMinutes: 30,
     ),
   );
-
-  // ESPB Sync Service
-  getIt.registerLazySingleton<EspbSyncService>(
-    () => EspbSyncService(
-      syncAllPendingEspbFormsUseCase: getIt<SyncAllPendingEspbFormsUseCase>(),
-      syncEspbFormUseCase: getIt<SyncEspbFormUseCase>(),
-      getEspbFormUseCase: getIt<GetEspbFormUseCase>(),
-      maxRetries: 3,
-      initialBackoff: const Duration(seconds: 5),
-    ),
-  );
-
   // BLoCs
   getIt.registerFactory(
     () => AuthBloc(
@@ -287,17 +242,6 @@ Future<void> configureDependencies() async {
       getSpbForDriverUseCase: getIt<GetSpbForDriverUseCase>(),
       syncSpbDataUseCase: getIt<SyncSpbDataUseCase>(),
       connectivity: getIt<Connectivity>(),
-    ),
-  );
-
-  // ESPB Form BLoC
-  getIt.registerFactory(
-    () => EspbFormBloc(
-      saveEspbFormUseCase: getIt<SaveEspbFormUseCase>(),
-      getEspbFormUseCase: getIt<GetEspbFormUseCase>(),
-      syncEspbFormUseCase: getIt<SyncEspbFormUseCase>(),
-      syncAllPendingEspbFormsUseCase: getIt<SyncAllPendingEspbFormsUseCase>(),
-      migrateEspbFormsUseCase: getIt<MigrateEspbFormsUseCase>(),
     ),
   );
 }
