@@ -258,7 +258,7 @@ class KendalaFormSyncService {
           // If it's already a string, make sure it's "1" or "0"
           final value = data['isAnyHandlingEx'] as String;
           if (value != "0" && value != "1") {
-            data['isAnyHandlingEx'] = value == "true" || value == "yes" || int.tryParse(value) == 1 ? "1" : "0";
+            data['isAnyHandlingEx'] = value == "true" || value == "yes" || value == "True" ? "1" : "0";
           }
         }
       }

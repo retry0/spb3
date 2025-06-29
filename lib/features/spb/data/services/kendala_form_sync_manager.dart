@@ -143,7 +143,7 @@ class KendalaFormSyncManager {
                 'latitude': data['latitude'] ?? '0.0',
                 'longitude': data['longitude'] ?? '0.0',
                 'alasan': kendalaText,
-                'is_any_handling_ex': isDriverChanged ? 1 : 0,
+                'is_any_handling_ex': isDriverChanged ? "True" : "False",
                 'timestamp': data['timestamp'] ?? modifiedTime ~/ 1000,
                 'is_synced': isSynced ? 1 : 0,
                 'retry_count': 0,
@@ -161,7 +161,7 @@ class KendalaFormSyncManager {
                   'latitude': data['latitude'] ?? '0.0',
                   'longitude': data['longitude'] ?? '0.0',
                   'alasan': kendalaText,
-                  'is_any_handling_ex': isDriverChanged ? 1 : 0,
+                  'is_any_handling_ex': isDriverChanged ? "True" : "False",
                   'timestamp': data['timestamp'] ?? modifiedTime ~/ 1000,
                   'is_synced': isSynced ? 1 : 0,
                   'updated_at': now,
@@ -234,7 +234,7 @@ class KendalaFormSyncManager {
             'latitude': formData['latitude'] ?? '0.0',
             'longitude': formData['longitude'] ?? '0.0',
             'alasan': kendalaText,
-            'is_any_handling_ex': isDriverChanged ? 1 : 0,
+            'is_any_handling_ex': isDriverChanged ? "True" : "False",
             'timestamp': formData['timestamp'] ?? nowSeconds,
             'is_synced': 0,
             'retry_count': 0,
@@ -252,7 +252,7 @@ class KendalaFormSyncManager {
               'latitude': formData['latitude'] ?? '0.0',
               'longitude': formData['longitude'] ?? '0.0',
               'alasan': kendalaText,
-              'is_any_handling_ex': isDriverChanged ? 1 : 0,
+              'is_any_handling_ex': isDriverChanged ? "True" : "False",
               'timestamp': formData['timestamp'] ?? nowSeconds,
               'is_synced': 0,
               'updated_at': nowSeconds,
@@ -291,8 +291,7 @@ class KendalaFormSyncManager {
           'latitude': dbData['latitude'] as String,
           'longitude': dbData['longitude'] as String,
           'alasan': dbData['alasan'] as String?,
-          'isAnyHandlingEx':
-              (dbData['is_any_handling_ex'] as int) == 1 ? "1" : "0",
+          'isAnyHandlingEx': dbData['is_any_handling_ex'] == "True" ? "1" : "0",
           'timestamp': dbData['timestamp'] as int,
           'isSynced': (dbData['is_synced'] as int) == 1,
           'retryCount': dbData['retry_count'] as int,
@@ -491,8 +490,7 @@ class KendalaFormSyncManager {
           'latitude': dbData['latitude'] as String,
           'longitude': dbData['longitude'] as String,
           'alasan': dbData['alasan'] as String?,
-          'isAnyHandlingEx':
-              (dbData['is_any_handling_ex'] as int) == 1 ? "1" : "0",
+          'isAnyHandlingEx': dbData['is_any_handling_ex'] == "True" ? "1" : "0",
           'timestamp':
               dbData['timestamp']
                   .toString(), // Convert to String to avoid type casting issues
@@ -535,7 +533,7 @@ class KendalaFormSyncManager {
           final value = formData['isAnyHandlingEx'] as String;
           if (value != "0" && value != "1") {
             formData['isAnyHandlingEx'] =
-                value == "true" || value == "yes" || value == "1" ? "1" : "0";
+                value == "true" || value == "yes" || value == "True" ? "1" : "0";
           }
         }
       }
@@ -586,7 +584,7 @@ class KendalaFormSyncManager {
           } else {
             // Insert new record if not in database yet
             final isAnyHandlingExValue = formData['isAnyHandlingEx'] as String;
-            final isAnyHandlingExInt = isAnyHandlingExValue == "1" ? 1 : 0;
+            final isAnyHandlingExStr = isAnyHandlingExValue == "1" ? "True" : "False";
 
             await txn.insert('espb_form_data', {
               'no_spb': spbId,
@@ -595,7 +593,7 @@ class KendalaFormSyncManager {
               'latitude': formData['latitude'] ?? '0.0',
               'longitude': formData['longitude'] ?? '0.0',
               'alasan': formData['alasan'] ?? '',
-              'is_any_handling_ex': isAnyHandlingExInt,
+              'is_any_handling_ex': isAnyHandlingExStr,
               'timestamp':
                   int.tryParse(formData['timestamp'] ?? '0') ??
                   DateTime.now().millisecondsSinceEpoch ~/ 1000,
