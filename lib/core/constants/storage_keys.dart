@@ -4,7 +4,7 @@ class StorageKeys {
   static const String userCredentials = 'user_credentials';
   static const String sessionData = 'session_data';
   static const String lastActivity = 'last_activity';
-
+  static const String refreshToken = 'refresh_token';
   // Local storage keys
   static const String themeMode = 'theme_mode';
   static const String language = 'language';

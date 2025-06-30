@@ -12,6 +12,7 @@ import '../../domain/usecases/logout_usecase.dart';
 import '../../domain/usecases/refresh_token_usecase.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../../core/error/failures.dart';
+import '../../domain/entities/auth_status.dart';
 part 'auth_event.dart';
 part 'auth_state.dart';
 
@@ -36,7 +37,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final int _maxRetryAttempts = 5;
   final Duration _initialBackoffDuration = const Duration(seconds: 5);
   Timer? _retryTimer;
-  
+
   // Auth service subscription
   StreamSubscription? _authStateSubscription;
 
@@ -64,7 +65,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     if (sessionManager != null) {
       sessionManager!.sessionState.addListener(_onSessionStateChanged);
     }
-    
+
     // Listen for auth service state changes
     _listenToAuthService();
   }
@@ -80,7 +81,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
     return super.close();
   }
-  
+
   void _listenToAuthService() {
     // Listen to auth service state changes
     authService.authState.addListener(() {
@@ -144,21 +145,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
       // Check if user is logged in with auth service
       final isLoggedIn = await authService.isSessionValid();
-      
+
       if (isLoggedIn) {
         // Get user data
         final userResult = await loginUseCase.repository.getCurrentUser();
-        
+
         await userResult.fold(
           (failure) async {
             emit(const AuthUnauthenticated());
           },
           (user) async {
             emit(AuthAuthenticated(user: user));
-            
+
             // Start token refresh timer
             _startTokenRefreshTimer();
-            
+
             // Update session activity if session manager is available
             if (sessionManager != null) {
               await sessionManager!.updateLastActivity();
@@ -184,21 +185,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     // Use auth service for login
     final success = await authService.login(event.userName, event.password);
-    
+
     if (success) {
       // Get user data
       final userResult = await loginUseCase.repository.getCurrentUser();
-      
+
       await userResult.fold(
         (failure) async {
           emit(AuthError(failure.message));
         },
         (user) async {
           emit(AuthAuthenticated(user: user));
-          
+
           // Start token refresh timer
           _startTokenRefreshTimer();
-          
+
           // Update session activity if session manager is available
           if (sessionManager != null) {
             await sessionManager!.updateLastActivity();
@@ -207,9 +208,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
     } else {
       // Login failed
-      emit(AuthError(authService.authState.value == AuthState.error 
-          ? 'Authentication failed' 
-          : 'Invalid credentials'));
+      emit(const AuthError('Invalid credentials'));
     }
   }
 
@@ -339,12 +338,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     if (event.isConnected && state is AuthAuthenticated) {
       // Validate token with server after reconnection
       final result = await refreshTokenUseCase.handleReconnection();
-      
+
       await result.fold(
         (failure) async {
           // Token validation failed after reconnection
-          AppLogger.warning('Token validation failed after reconnection: ${failure.message}');
-          
+          AppLogger.warning(
+            'Token validation failed after reconnection: ${failure.message}',
+          );
+
           // If it's a network error, don't log out - we'll try again later
           if (failure is NetworkFailure || failure is TimeoutFailure) {
             // Schedule retry with backoff
@@ -410,26 +411,26 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       // User needs to log in again
     }
   }
-  
+
   Future<void> _onAuthServiceStateChanged(
     AuthServiceStateChanged event,
     Emitter<AuthState> emit,
   ) async {
     switch (event.authState) {
-      case AuthState.authenticated:
+      case AuthStatus.authenticated:
         // Get user data
         final userResult = await loginUseCase.repository.getCurrentUser();
-        
+
         await userResult.fold(
           (failure) async {
             emit(AuthError(failure.message));
           },
           (user) async {
             emit(AuthAuthenticated(user: user));
-            
+
             // Start token refresh timer
             _startTokenRefreshTimer();
-            
+
             // Update session activity if session manager is available
             if (sessionManager != null) {
               await sessionManager!.updateLastActivity();
@@ -437,22 +438,22 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           },
         );
         break;
-        
-      case AuthState.unauthenticated:
-      case AuthState.sessionExpired:
+
+      case AuthStatus.unauthenticated:
+      case AuthStatus.sessionExpired:
         emit(const AuthUnauthenticated());
         break;
-        
-      case AuthState.error:
+
+      case AuthStatus.error:
         emit(AuthError(authService.authState.value.toString()));
         break;
-        
-      case AuthState.authenticating:
-      case AuthState.loggingOut:
+
+      case AuthStatus.authenticating:
+      case AuthStatus.loggingOut:
         emit(const AuthLoading());
         break;
-        
-      case AuthState.unknown:
+
+      case AuthStatus.unknown:
         // Do nothing, wait for a definitive state
         break;
     }
