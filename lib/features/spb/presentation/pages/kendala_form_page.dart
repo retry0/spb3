@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'dart:convert';
+import 'dart:async';
 import '../pages/spb_page.dart';
 
 import '../../../../core/di/injection.dart';
-//import '../../../../core/config/api_endpoints.dart';
 import '../../data/models/spb_model.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../data/services/kendala_form_sync_service.dart';
+import '../../data/services/kendala_form_sqlite_service.dart';
 import '../widgets/kendala_sync_status_indicator.dart';
 
 class KendalaFormPage extends StatefulWidget {
@@ -34,7 +32,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
   final TextEditingController _kendalaController = TextEditingController();
   final Dio _dio = getIt<Dio>();
   bool _isConnected = true;
-  final KendalaFormSyncService _syncService = getIt<KendalaFormSyncService>();
+  final KendalaFormSqliteService _sqliteService = getIt<KendalaFormSqliteService>();
 
   // Animation controllers
   late AnimationController _animationController;
@@ -143,21 +141,25 @@ class _KendalaFormPageState extends State<KendalaFormPage>
 
   Future<void> _loadSavedData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
       final spbId = widget.spb.noSpb;
-
-      // Load checkbox state
-      final isDriverOrVehicleChanged =
-          prefs.getBool('kendala_driver_changed_$spbId') ?? false;
-
-      // Load kendala text
-      final kendalaText = prefs.getString('kendala_text_$spbId') ?? '';
-
-      if (mounted) {
-        setState(() {
-          _isDriverOrVehicleChanged = isDriverOrVehicleChanged;
-          _kendalaController.text = kendalaText;
-        });
+      
+      // Load data from SQLite
+      final formData = await _sqliteService.getFormData(spbId);
+      
+      if (formData != null) {
+        if (mounted) {
+          setState(() {
+            // Extract is_any_handling_ex as boolean
+            final isAnyHandlingEx = formData['isAnyHandlingEx'];
+            _isDriverOrVehicleChanged = isAnyHandlingEx == "1" || 
+                                       isAnyHandlingEx == "true" || 
+                                       isAnyHandlingEx == "yes" || 
+                                       isAnyHandlingEx == "True";
+            
+            // Set kendala text
+            _kendalaController.text = formData['alasan'] ?? '';
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -345,14 +347,12 @@ class _KendalaFormPageState extends State<KendalaFormPage>
         'latitude': _currentPosition?.latitude.toString() ?? "0.0",
         'longitude': _currentPosition?.longitude.toString() ?? "0.0",
         'createdBy': widget.spb.driver.toString(),
-        //'status': "2", // Set status to indicate kendala/issue
-        'alasan': _kendalaController.text,
-        'isAnyHandlingEx': "True", // Use string "1" or "0" instead of integer
-        //'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'status': "2", // Set status to indicate kendala/issue
+        'timestamp': DateTime.now().millisecondsSinceEpoch ~/ 1000,
       };
 
-      // Save to sync service
-      final saveResult = await _syncService.saveForm(
+      // Save to SQLite service
+      final saveResult = await _sqliteService.saveForm(
         spbId: widget.spb.noSpb,
         formData: data,
         isDriverChanged: _isDriverOrVehicleChanged,
@@ -361,7 +361,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
 
       if (!saveResult) {
         setState(() {
-          _errorMessage = 'Failed to save form data locally';
+          _errorMessage = 'Failed to save form data to database';
           _isLoading = false;
         });
         return;
@@ -369,7 +369,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
 
       if (_isConnected) {
         // Try to sync immediately if online
-        final syncResult = await _syncService.syncForm(widget.spb.noSpb);
+        final syncResult = await _sqliteService.syncForm(widget.spb.noSpb);
 
         if (syncResult) {
           // Show success message
@@ -544,7 +544,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
                     // Sync status indicator
                     KendalaSyncStatusIndicator(
                       spbNumber: widget.spb.noSpb,
-                      onRetry: () => _syncService.syncForm(widget.spb.noSpb),
+                      onRetry: () => _sqliteService.syncForm(widget.spb.noSpb),
                     ),
 
                     const SizedBox(height: 24),
