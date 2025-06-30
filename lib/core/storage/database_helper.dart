@@ -834,6 +834,12 @@ class DatabaseHelper {
     try {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
+      // First, ensure the user exists in the users table
+      final userExists = await _ensureUserExists(db, userId, username);
+      if (!userExists) {
+        throw Exception('User does not exist in the database. Cannot save token.');
+      }
+
       // Delete any existing tokens for this user
       await db.delete(
         'auth_tokens',
@@ -853,9 +859,38 @@ class DatabaseHelper {
 
       AppLogger.info('Auth token saved for user: $username');
     } catch (e) {
-      AppLogger.error('Failed to save auth token', e);
+      AppLogger.error('Failed to save auth token: $e');
       rethrow;
     }
+  }
+
+  // Helper method to ensure user exists before saving token
+  Future<bool> _ensureUserExists(Database db, String userId, String username) async {
+    final users = await db.query(
+      'users',
+      where: 'id = ? OR UserName = ?',
+      whereArgs: [userId, username],
+    );
+    
+    if (users.isEmpty) {
+      // Create a basic user record if it doesn't exist
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      try {
+        await db.insert('users', {
+          'id': userId,
+          'UserName': username,
+          'Nama': username, // Use username as name if we don't have it
+          'created_at': now,
+          'updated_at': now,
+        });
+        return true;
+      } catch (e) {
+        AppLogger.error('Failed to create user record: $e');
+        return false;
+      }
+    }
+    
+    return true;
   }
 
   Future<Map<String, dynamic>?> getLatestAuthToken(String username) async {
