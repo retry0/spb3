@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../../../core/config/api_endpoints.dart';
 import '../../../../core/utils/logger.dart';
@@ -96,23 +97,26 @@ class KendalaFormSyncService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final pendingForms = prefs.getStringList('pending_kendala_forms') ?? [];
-      
+
       if (pendingForms.isEmpty) {
         return;
       }
-      
-      AppLogger.info('Migrating ${pendingForms.length} kendala forms from SharedPreferences to SQLite');
-      
+
+      AppLogger.info(
+        'Migrating ${pendingForms.length} kendala forms from SharedPreferences to SQLite',
+      );
+
       for (final spbId in pendingForms) {
         final formDataJson = prefs.getString('kendala_form_data_$spbId');
-        final isDriverChanged = prefs.getBool('kendala_driver_changed_$spbId') ?? false;
+        final isDriverChanged =
+            prefs.getBool('kendala_driver_changed_$spbId') ?? false;
         final kendalaText = prefs.getString('kendala_text_$spbId') ?? '';
         final isSynced = prefs.getBool('kendala_synced_$spbId') ?? false;
-        
+
         if (formDataJson != null) {
           try {
             final data = jsonDecode(formDataJson) as Map<String, dynamic>;
-            
+
             // Convert to SQLite format
             final sqliteData = {
               'no_spb': data['noSPB'] ?? spbId,
@@ -122,21 +126,25 @@ class KendalaFormSyncService {
               'alasan': data['alasan'] ?? kendalaText,
               'is_any_handling_ex': isDriverChanged ? "1" : "0",
               'status': data['status'] ?? "2",
-              'timestamp': data['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
+              'timestamp':
+                  data['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
               'is_synced': isSynced ? 1 : 0,
               'retry_count': 0,
             };
-            
+
             // Save to SQLite
             await _dbHelper.saveKendalaForm(sqliteData);
-            
+
             AppLogger.info('Migrated kendala form for SPB: $spbId to SQLite');
           } catch (e) {
-            AppLogger.error('Failed to migrate kendala form for SPB: $spbId', e);
+            AppLogger.error(
+              'Failed to migrate kendala form for SPB: $spbId',
+              e,
+            );
           }
         }
       }
-      
+
       // Don't delete from SharedPreferences yet to ensure backward compatibility
       // We'll keep both systems in sync during the transition period
     } catch (e) {
@@ -161,13 +169,14 @@ class KendalaFormSyncService {
         'alasan': formData['alasan'] ?? kendalaText,
         'is_any_handling_ex': isDriverChanged ? "1" : "0",
         'status': formData['status'] ?? "2",
-        'timestamp': formData['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
+        'timestamp':
+            formData['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
         'is_synced': 0,
         'retry_count': 0,
       };
-      
+
       await _dbHelper.saveKendalaForm(sqliteData);
-      
+
       // Also save to SharedPreferences for backward compatibility
       final prefs = await SharedPreferences.getInstance();
 
@@ -203,7 +212,7 @@ class KendalaFormSyncService {
     try {
       // First try to get from SQLite
       final sqliteData = await _dbHelper.getKendalaForm(spbId);
-      
+
       if (sqliteData != null) {
         // Convert SQLite format to API format
         return {
@@ -217,7 +226,7 @@ class KendalaFormSyncService {
           'timestamp': sqliteData['timestamp'],
         };
       }
-      
+
       // Fallback to SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       final formDataJson = prefs.getString('kendala_form_data_$spbId');
@@ -239,7 +248,7 @@ class KendalaFormSyncService {
       if (sqliteData != null) {
         return sqliteData['is_synced'] == 1;
       }
-      
+
       // Fallback to SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       return prefs.getBool('kendala_synced_$spbId') ?? false;
@@ -254,19 +263,21 @@ class KendalaFormSyncService {
     try {
       // Get from SQLite
       final pendingForms = await _dbHelper.getPendingKendalaForms();
-      final spbIds = pendingForms.map((form) => form['no_spb'] as String).toList();
-      
+      final spbIds =
+          pendingForms.map((form) => form['no_spb'] as String).toList();
+
       // Also check SharedPreferences for backward compatibility
       final prefs = await SharedPreferences.getInstance();
-      final prefsPendingForms = prefs.getStringList('pending_kendala_forms') ?? [];
-      
+      final prefsPendingForms =
+          prefs.getStringList('pending_kendala_forms') ?? [];
+
       // Combine both sources and remove duplicates
       final allPendingForms = {...spbIds, ...prefsPendingForms}.toList();
-      
+
       return allPendingForms;
     } catch (e) {
       AppLogger.error('Error getting pending forms: $e');
-      
+
       // Fallback to SharedPreferences only
       final prefs = await SharedPreferences.getInstance();
       return prefs.getStringList('pending_kendala_forms') ?? [];
@@ -290,11 +301,12 @@ class KendalaFormSyncService {
     try {
       // Get pending forms from SQLite
       final sqlitePendingForms = await _dbHelper.getPendingKendalaForms();
-      
+
       // Get pending forms from SharedPreferences
       final prefs = await SharedPreferences.getInstance();
-      final prefsPendingForms = prefs.getStringList('pending_kendala_forms') ?? [];
-      
+      final prefsPendingForms =
+          prefs.getStringList('pending_kendala_forms') ?? [];
+
       // If both are empty, nothing to sync
       if (sqlitePendingForms.isEmpty && prefsPendingForms.isEmpty) {
         _isSyncing = false;
@@ -305,7 +317,9 @@ class KendalaFormSyncService {
         return true;
       }
 
-      AppLogger.info('Syncing ${sqlitePendingForms.length} pending kendala forms from SQLite and ${prefsPendingForms.length} from SharedPreferences');
+      AppLogger.info(
+        'Syncing ${sqlitePendingForms.length} pending kendala forms from SQLite and ${prefsPendingForms.length} from SharedPreferences',
+      );
 
       bool allSynced = true;
       List<String> successfullySyncedIds = [];
@@ -313,7 +327,7 @@ class KendalaFormSyncService {
       // First sync SQLite forms
       for (final form in sqlitePendingForms) {
         final spbId = form['no_spb'] as String;
-        
+
         // Convert SQLite format to API format
         final apiData = {
           'noSPB': form['no_spb'],
@@ -325,13 +339,13 @@ class KendalaFormSyncService {
           'status': form['status'],
           'timestamp': form['timestamp'],
         };
-        
+
         final success = await _syncFormWithApi(apiData);
-        
+
         if (success) {
           // Update SQLite sync status
           await _dbHelper.updateKendalaFormSyncStatus(spbId, true);
-          
+
           // Also update SharedPreferences if it exists there
           if (prefsPendingForms.contains(spbId)) {
             await prefs.setBool('kendala_synced_$spbId', true);
@@ -350,31 +364,39 @@ class KendalaFormSyncService {
         if (successfullySyncedIds.contains(spbId)) {
           continue;
         }
-        
+
         final formDataJson = prefs.getString('kendala_form_data_$spbId');
         if (formDataJson == null) {
           continue;
         }
-        
+
         try {
           final data = jsonDecode(formDataJson) as Map<String, dynamic>;
-          
+
           // Fix the boolean conversion issue
           if (data.containsKey('isAnyHandlingEx')) {
             if (data['isAnyHandlingEx'] is bool) {
-              data['isAnyHandlingEx'] = (data['isAnyHandlingEx'] as bool) ? "1" : "0";
+              data['isAnyHandlingEx'] =
+                  (data['isAnyHandlingEx'] as bool) ? "1" : "0";
             } else if (data['isAnyHandlingEx'] is int) {
-              data['isAnyHandlingEx'] = (data['isAnyHandlingEx'] as int) > 0 ? "1" : "0";
+              data['isAnyHandlingEx'] =
+                  (data['isAnyHandlingEx'] as int) > 0 ? "1" : "0";
             } else if (data['isAnyHandlingEx'] is String) {
               final value = data['isAnyHandlingEx'] as String;
               if (value != "0" && value != "1") {
-                data['isAnyHandlingEx'] = value == "true" || value == "yes" || value == "True" || int.tryParse(value) == 1 ? "1" : "0";
+                data['isAnyHandlingEx'] =
+                    value == "true" ||
+                            value == "yes" ||
+                            value == "True" ||
+                            int.tryParse(value) == 1
+                        ? "1"
+                        : "0";
               }
             }
           }
-          
+
           final success = await _syncFormWithApi(data);
-          
+
           if (success) {
             await prefs.setBool('kendala_synced_$spbId', true);
             successfullySyncedIds.add(spbId);
@@ -382,16 +404,19 @@ class KendalaFormSyncService {
             allSynced = false;
           }
         } catch (e) {
-          AppLogger.error('Error syncing form $spbId from SharedPreferences: $e');
+          AppLogger.error(
+            'Error syncing form $spbId from SharedPreferences: $e',
+          );
           allSynced = false;
         }
       }
 
       // Remove successfully synced forms from pending list in SharedPreferences
       if (successfullySyncedIds.isNotEmpty) {
-        final updatedPendingForms = prefsPendingForms
-            .where((spbId) => !successfullySyncedIds.contains(spbId))
-            .toList();
+        final updatedPendingForms =
+            prefsPendingForms
+                .where((spbId) => !successfullySyncedIds.contains(spbId))
+                .toList();
         await prefs.setStringList('pending_kendala_forms', updatedPendingForms);
       }
 
@@ -429,7 +454,7 @@ class KendalaFormSyncService {
 
     // Get form data from SQLite first
     final sqliteData = await _dbHelper.getKendalaForm(spbId);
-    
+
     if (sqliteData != null) {
       // Convert SQLite format to API format
       final apiData = {
@@ -442,24 +467,24 @@ class KendalaFormSyncService {
         'status': sqliteData['status'],
         'timestamp': sqliteData['timestamp'],
       };
-      
+
       final success = await _syncFormWithApi(apiData);
-      
+
       if (success) {
         // Update SQLite sync status
         await _dbHelper.updateKendalaFormSyncStatus(spbId, true);
-        
+
         // Also update SharedPreferences for backward compatibility
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('kendala_synced_$spbId', true);
-        
+
         // Remove from pending forms list in SharedPreferences
         final pendingForms = prefs.getStringList('pending_kendala_forms') ?? [];
         if (pendingForms.contains(spbId)) {
           pendingForms.remove(spbId);
           await prefs.setStringList('pending_kendala_forms', pendingForms);
         }
-        
+
         return true;
       } else {
         // Increment retry count
@@ -467,7 +492,7 @@ class KendalaFormSyncService {
         return false;
       }
     }
-    
+
     // Fallback to SharedPreferences
     return _syncFormFromSharedPreferences(spbId);
   }
@@ -476,34 +501,44 @@ class KendalaFormSyncService {
   Future<bool> _syncFormFromSharedPreferences(String spbId) async {
     final prefs = await SharedPreferences.getInstance();
     final formDataJson = prefs.getString('kendala_form_data_$spbId');
-    
+
     if (formDataJson == null) {
-      AppLogger.warning('No form data found in SharedPreferences for SPB: $spbId');
+      AppLogger.warning(
+        'No form data found in SharedPreferences for SPB: $spbId',
+      );
       return false;
     }
 
     try {
       final data = jsonDecode(formDataJson) as Map<String, dynamic>;
-      
+
       // Fix the boolean conversion issue
       if (data.containsKey('isAnyHandlingEx')) {
         if (data['isAnyHandlingEx'] is bool) {
-          data['isAnyHandlingEx'] = (data['isAnyHandlingEx'] as bool) ? "1" : "0";
+          data['isAnyHandlingEx'] =
+              (data['isAnyHandlingEx'] as bool) ? "1" : "0";
         } else if (data['isAnyHandlingEx'] is int) {
-          data['isAnyHandlingEx'] = (data['isAnyHandlingEx'] as int) > 0 ? "1" : "0";
+          data['isAnyHandlingEx'] =
+              (data['isAnyHandlingEx'] as int) > 0 ? "1" : "0";
         } else if (data['isAnyHandlingEx'] is String) {
           final value = data['isAnyHandlingEx'] as String;
           if (value != "0" && value != "1") {
-            data['isAnyHandlingEx'] = value == "true" || value == "yes" || value == "True" || int.tryParse(value) == 1 ? "1" : "0";
+            data['isAnyHandlingEx'] =
+                value == "true" ||
+                        value == "yes" ||
+                        value == "True" ||
+                        int.tryParse(value) == 1
+                    ? "1"
+                    : "0";
           }
         }
       }
-      
+
       final success = await _syncFormWithApi(data);
-      
+
       if (success) {
         await prefs.setBool('kendala_synced_$spbId', true);
-        
+
         // Remove from pending forms list
         final pendingForms = prefs.getStringList('pending_kendala_forms') ?? [];
         if (pendingForms.contains(spbId)) {
@@ -511,7 +546,7 @@ class KendalaFormSyncService {
           await prefs.setStringList('pending_kendala_forms', pendingForms);
         }
       }
-      
+
       return success;
     } catch (e) {
       AppLogger.error('Error syncing form $spbId from SharedPreferences: $e');
@@ -538,7 +573,9 @@ class KendalaFormSyncService {
       );
 
       if (response.statusCode == 200) {
-        AppLogger.info('Successfully synced kendala form for SPB: ${data['noSPB']}');
+        AppLogger.info(
+          'Successfully synced kendala form for SPB: ${data['noSPB']}',
+        );
         return true;
       }
 
@@ -552,21 +589,14 @@ class KendalaFormSyncService {
       );
       return false;
     } catch (e) {
-      AppLogger.error(
-        'Error syncing form ${data['noSPB']}: $e',
-      );
+      AppLogger.error('Error syncing form ${data['noSPB']}: $e');
       return false;
     }
   }
 
   /// Validate form data before sending to API
   void _validateFormData(Map<String, dynamic> data) {
-    final requiredFields = [
-      'noSPB',
-      'createdBy',
-      'latitude',
-      'longitude',
-    ];
+    final requiredFields = ['noSPB', 'createdBy', 'latitude', 'longitude'];
 
     for (final field in requiredFields) {
       if (!data.containsKey(field) ||
@@ -592,24 +622,25 @@ class KendalaFormSyncService {
     try {
       // Get stats from SQLite
       final pendingForms = await _dbHelper.getPendingKendalaForms();
-      
+
       // Get synced forms count
       final db = await _dbHelper.database;
       final syncedResult = await db.rawQuery(
-        'SELECT COUNT(*) as count FROM kendala_form_data WHERE is_synced = 1'
+        'SELECT COUNT(*) as count FROM kendala_form_data WHERE is_synced = 1',
       );
       final syncedCount = Sqflite.firstIntValue(syncedResult) ?? 0;
-      
+
       // Get failed forms count (retry count > 3)
       final failedResult = await db.rawQuery(
-        'SELECT COUNT(*) as count FROM kendala_form_data WHERE is_synced = 0 AND retry_count >= 3'
+        'SELECT COUNT(*) as count FROM kendala_form_data WHERE is_synced = 0 AND retry_count >= 3',
       );
       final failedCount = Sqflite.firstIntValue(failedResult) ?? 0;
-      
+
       // Also check SharedPreferences for backward compatibility
       final prefs = await SharedPreferences.getInstance();
-      final prefsPendingForms = prefs.getStringList('pending_kendala_forms') ?? [];
-      
+      final prefsPendingForms =
+          prefs.getStringList('pending_kendala_forms') ?? [];
+
       // Count synced forms in SharedPreferences
       int prefsSyncedCount = 0;
       for (final key in prefs.getKeys()) {
@@ -617,11 +648,11 @@ class KendalaFormSyncService {
           prefsSyncedCount++;
         }
       }
-      
+
       // Combine stats from both sources
       final totalForms = syncedCount + pendingForms.length;
       final pendingCount = pendingForms.length;
-      
+
       return SyncStats(
         totalForms: totalForms,
         syncedForms: syncedCount,
@@ -630,18 +661,18 @@ class KendalaFormSyncService {
       );
     } catch (e) {
       AppLogger.error('Failed to get sync stats: $e');
-      
+
       // Fallback to SharedPreferences only
       final prefs = await SharedPreferences.getInstance();
       final pendingForms = prefs.getStringList('pending_kendala_forms') ?? [];
-      
+
       int syncedCount = 0;
       for (final key in prefs.getKeys()) {
         if (key.startsWith('kendala_synced_') && prefs.getBool(key) == true) {
           syncedCount++;
         }
       }
-      
+
       return SyncStats(
         totalForms: syncedCount + pendingForms.length,
         syncedForms: syncedCount,
@@ -657,7 +688,7 @@ class KendalaFormSyncService {
       // Clear SQLite data
       final db = await _dbHelper.database;
       await db.delete('kendala_form_data');
-      
+
       // Clear SharedPreferences data
       final prefs = await SharedPreferences.getInstance();
 
@@ -667,7 +698,8 @@ class KendalaFormSyncService {
               .getKeys()
               .where(
                 (key) =>
-                    key.startsWith('kendala_') || key == 'pending_kendala_forms',
+                    key.startsWith('kendala_') ||
+                    key == 'pending_kendala_forms',
               )
               .toList();
 

@@ -186,26 +186,6 @@ class DatabaseHelper {
       //     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
       //   )
       // ''');
-
-      // ESPB form data table for storing form submissions
-      await db.execute('''
-        CREATE TABLE espb_form_data (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          no_spb TEXT UNIQUE NOT NULL,
-          created_by TEXT NOT NULL,
-          latitude TEXT NOT NULL,
-          longitude TEXT NOT NULL,
-          alasan TEXT,
-          is_any_handling_ex TEXT,
-          timestamp INTEGER NOT NULL,
-          is_synced INTEGER NOT NULL DEFAULT 0,
-          retry_count INTEGER NOT NULL DEFAULT 0,
-          last_error TEXT,
-          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-        )
-      ''');
-
       // ESPB form data table for storing form submissions
       await db.execute('''
         CREATE TABLE accept_form_data (
@@ -296,16 +276,6 @@ class DatabaseHelper {
       // );
       // await db.execute(
       //   'CREATE INDEX idx_auth_sync_queue_operation ON auth_sync_queue (operation)',
-      // );
-      await db.execute(
-        'CREATE INDEX idx_espb_form_data_no_spb ON espb_form_data (no_spb)',
-      );
-      await db.execute(
-        'CREATE INDEX idx_espb_form_data_is_synced ON espb_form_data (is_synced)',
-      );
-      await db.execute(
-        'CREATE INDEX idx_espb_form_data_timestamp ON espb_form_data (timestamp)',
-      );
       await db.execute(
         'CREATE INDEX idx_accept_form_data_no_spb ON accept_form_data (no_spb)',
       );
@@ -638,31 +608,12 @@ class DatabaseHelper {
     try {
       AppLogger.info('Migrating to add ESPB form data table...');
 
-      // Check if espb_form_data table already exists
       final tables = await db.rawQuery(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='espb_form_data'",
       );
 
       if (tables.isEmpty) {
-        // Create espb_form_data table
-        await db.execute('''
-          CREATE TABLE espb_form_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            no_spb TEXT UNIQUE NOT NULL,
-            created_by TEXT NOT NULL,
-            latitude TEXT NOT NULL,
-            longitude TEXT NOT NULL,
-            alasan TEXT,
-            is_any_handling_ex text,
-            timestamp INTEGER NOT NULL,
-            is_synced INTEGER NOT NULL DEFAULT 0,
-            retry_count INTEGER NOT NULL DEFAULT 0,
-            last_error TEXT,
-            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-          )
-        ''');
-
+        // Create accept_form_data table
         await db.execute('''
           CREATE TABLE accept_form_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -679,18 +630,6 @@ class DatabaseHelper {
             updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
           )
         ''');
-
-        // Create indexes
-        await db.execute(
-          'CREATE INDEX idx_espb_form_data_no_spb ON espb_form_data (no_spb)',
-        );
-        await db.execute(
-          'CREATE INDEX idx_espb_form_data_is_synced ON espb_form_data (is_synced)',
-        );
-        await db.execute(
-          'CREATE INDEX idx_espb_form_data_timestamp ON espb_form_data (timestamp)',
-        );
-
         // Create indexes
         await db.execute(
           'CREATE INDEX idx_accept_form_data_no_spb ON accept_form_data (no_spb)',
@@ -878,7 +817,6 @@ class DatabaseHelper {
       await txn.delete('auth_tokens');
       await txn.delete('user_credentials');
       //await txn.delete('auth_sync_queue');
-      await txn.delete('espb_form_data');
       await txn.delete('accept_form_data');
       await txn.delete('kendala_form_data');
     });
@@ -1126,7 +1064,7 @@ class DatabaseHelper {
     final db = await database;
     try {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      
+
       // Check if record already exists
       final existingRecords = await db.query(
         'kendala_form_data',
@@ -1172,14 +1110,14 @@ class DatabaseHelper {
   }
 
   Future<int> updateKendalaFormSyncStatus(
-    String noSpb, 
-    bool isSynced, 
-    {String? errorMessage}
-  ) async {
+    String noSpb,
+    bool isSynced, {
+    String? errorMessage,
+  }) async {
     final db = await database;
     try {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      
+
       return await db.update(
         'kendala_form_data',
         {
@@ -1208,14 +1146,14 @@ class DatabaseHelper {
         whereArgs: [noSpb],
         limit: 1,
       );
-      
+
       if (results.isEmpty) {
         return 0;
       }
-      
+
       final currentRetryCount = results.first['retry_count'] as int? ?? 0;
       final newRetryCount = currentRetryCount + 1;
-      
+
       // Update retry count
       await db.update(
         'kendala_form_data',
@@ -1226,7 +1164,7 @@ class DatabaseHelper {
         where: 'no_spb = ?',
         whereArgs: [noSpb],
       );
-      
+
       return newRetryCount;
     } catch (e) {
       AppLogger.error('Failed to increment kendala form retry count', e);
@@ -1243,7 +1181,7 @@ class DatabaseHelper {
         whereArgs: [noSpb],
         limit: 1,
       );
-      
+
       return results.isNotEmpty ? results.first : null;
     } catch (e) {
       AppLogger.error('Failed to get kendala form', e);
@@ -1254,14 +1192,19 @@ class DatabaseHelper {
   // Migrate data from SharedPreferences to SQLite
   Future<void> migrateKendalaFormsFromSharedPreferences() async {
     try {
-      AppLogger.info('Migrating kendala forms from SharedPreferences to SQLite...');
-      
+      AppLogger.info(
+        'Migrating kendala forms from SharedPreferences to SQLite...',
+      );
+
       // This would be implemented in a real app to read from SharedPreferences
       // and insert into SQLite database
-      
+
       AppLogger.info('Kendala forms migration completed');
     } catch (e) {
-      AppLogger.error('Failed to migrate kendala forms from SharedPreferences', e);
+      AppLogger.error(
+        'Failed to migrate kendala forms from SharedPreferences',
+        e,
+      );
     }
   }
 }

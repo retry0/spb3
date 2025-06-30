@@ -147,7 +147,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
     try {
       // First try to load from SQLite
       final sqliteData = await _dbHelper.getKendalaForm(widget.spb.noSpb);
-      
+
       if (sqliteData != null) {
         if (mounted) {
           setState(() {
@@ -157,7 +157,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
         }
         return;
       }
-      
+
       // Fallback to SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       final spbId = widget.spb.noSpb;
@@ -363,7 +363,10 @@ class _KendalaFormPageState extends State<KendalaFormPage>
         'createdBy': widget.spb.driver.toString(),
         'status': "2", // Set status to indicate kendala/issue
         'alasan': _kendalaController.text,
-        'isAnyHandlingEx': _isDriverOrVehicleChanged ? "1" : "0", // Use string "1" or "0" instead of boolean
+        'isAnyHandlingEx':
+            _isDriverOrVehicleChanged
+                ? "1"
+                : "0", // Use string "1" or "0" instead of boolean
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       };
 
@@ -380,7 +383,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
         'is_synced': 0,
         'retry_count': 0,
       };
-      
+
       await _dbHelper.saveKendalaForm(sqliteData);
 
       // Save to sync service

@@ -122,6 +122,7 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton<KendalaFormSyncService>(
     () => KendalaFormSyncService(
       dio: getIt<Dio>(),
+      dbHelper: getIt<DatabaseHelper>(),
       maxRetries: 3,
       initialBackoff: const Duration(seconds: 5),
     ),
