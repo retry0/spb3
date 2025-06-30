@@ -8,7 +8,8 @@ import 'dart:convert';
 import '../pages/spb_page.dart';
 
 import '../../../../core/di/injection.dart';
-//import '../../../../core/config/api_endpoints.dart';
+import '../../../../core/config/api_endpoints.dart';
+import '../../../../core/storage/database_helper.dart';
 import '../../data/models/spb_model.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/services/cek_spb_form_sync_service.dart';
@@ -34,6 +35,7 @@ class _CekEspbPageState extends State<CekEspbPage>
   final Dio _dio = getIt<Dio>();
   bool _isConnected = true;
   final CekFormSyncService _syncService = getIt<CekFormSyncService>();
+  final DatabaseHelper _dbHelper = getIt<DatabaseHelper>();
 
   // Animation controllers
   late AnimationController _animationController;
@@ -65,13 +67,235 @@ class _CekEspbPageState extends State<CekEspbPage>
 
     _animationController.forward();
     _checkGpsPermission();
-    //_loadSavedData();
     _checkConnectivity();
+
+    // Check for any pending forms to sync
+    _syncPendingForms();
   }
 
   @override
   void dispose() {
+    _animationController.dispose();
     super.dispose();
+  }
+
+  /// Automatically sync all pending forms from SharedPreferences to SQLite and REST API
+  Future<void> _syncPendingForms() async {
+    try {
+      // Check if we have connectivity first
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final hasConnectivity =
+          connectivityResult.isNotEmpty &&
+          !connectivityResult.contains(ConnectivityResult.none);
+
+      if (!hasConnectivity) {
+        // We're offline, can't sync now
+        return;
+      }
+
+      // Get all pending forms from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final pendingForms = prefs.getStringList('pending_cek_forms') ?? [];
+
+      if (pendingForms.isEmpty) {
+        return; // No pending forms to sync
+      }
+
+      // Process each pending form
+      for (final spbId in pendingForms) {
+        await _syncFormToDatabase(spbId);
+      }
+    } catch (e) {
+      print('Error syncing pending forms: $e');
+    }
+  }
+
+  /// Sync a specific form from SharedPreferences to SQLite database and REST API
+  Future<bool> _syncFormToDatabase(String spbId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final formDataJson = prefs.getString('cek_form_data_$spbId');
+
+      if (formDataJson == null) {
+        return false; // No form data found
+      }
+
+      // Parse the form data
+      final data = jsonDecode(formDataJson) as Map<String, dynamic>;
+
+      // Ensure status is properly formatted as string "1" or "0"
+      if (data.containsKey('status')) {
+        if (data['status'] is bool) {
+          data['status'] = (data['status'] as bool) ? "1" : "0";
+        } else if (data['status'] is int) {
+          data['status'] = (data['status'] as int) > 0 ? "1" : "0";
+        } else if (data['status'] is String) {
+          final value = data['status'] as String;
+          if (value != "0" && value != "1") {
+            data['status'] =
+                value == "true" ||
+                        value == "yes" ||
+                        value == "True" ||
+                        int.tryParse(value) == 1
+                    ? "1"
+                    : "0";
+          }
+        }
+      }
+
+      // Validate required fields
+      _validateFormData(data);
+
+      // First, save to SQLite database
+      await _saveToDatabase(spbId, data);
+
+      // Then try to sync with REST API
+      final syncSuccess = await _syncWithApi(data);
+
+      if (syncSuccess) {
+        // Update sync status in both SharedPreferences and SQLite
+        await prefs.setBool('cek_synced_$spbId', true);
+        await _dbHelper.update(
+          'accept_form_data',
+          {'is_synced': 1},
+          where: 'no_spb = ?',
+          whereArgs: [spbId],
+        );
+
+        // Remove from pending forms list
+        final pendingForms = prefs.getStringList('pending_cek_forms') ?? [];
+        pendingForms.remove(spbId);
+        await prefs.setStringList('pending_cek_forms', pendingForms);
+
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      print('Error syncing form $spbId to database: $e');
+      return false;
+    }
+  }
+
+  /// Save form data to SQLite database
+  Future<void> _saveToDatabase(String spbId, Map<String, dynamic> data) async {
+    try {
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+      // Check if record already exists
+      final existingRecords = await _dbHelper.query(
+        'accept_form_data',
+        where: 'no_spb = ?',
+        whereArgs: [spbId],
+        limit: 1,
+      );
+
+      if (existingRecords.isEmpty) {
+        // Insert new record
+        await _dbHelper.insert('accept_form_data', {
+          'no_spb': spbId,
+          'status': data['status'] ?? '1', // Default to accepted status
+          'created_by': data['createdBy'] ?? '',
+          'latitude': data['latitude'] ?? '0.0',
+          'longitude': data['longitude'] ?? '0.0',
+          'timestamp': data['timestamp'] ?? now,
+          'is_synced': 0, // Not synced yet
+          'retry_count': 0,
+          'last_error': null,
+          'created_at': now,
+          'updated_at': now,
+        });
+      } else {
+        // Update existing record
+        await _dbHelper.update(
+          'accept_form_data',
+          {
+            'status': data['status'] ?? '1',
+            'created_by': data['createdBy'] ?? '',
+            'latitude': data['latitude'] ?? '0.0',
+            'longitude': data['longitude'] ?? '0.0',
+            'timestamp': data['timestamp'] ?? now,
+            'updated_at': now,
+          },
+          where: 'no_spb = ?',
+          whereArgs: [spbId],
+        );
+      }
+    } catch (e) {
+      print('Error saving form to database: $e');
+      throw Exception('Failed to save form to database: $e');
+    }
+  }
+
+  /// Sync form data with REST API
+  Future<bool> _syncWithApi(
+    Map<String, dynamic> data, {
+    int retryCount = 0,
+  }) async {
+    try {
+      // Set timeout for API request
+      final options = Options(
+        sendTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+      );
+
+      // Make API request
+      final response = await _dio.put(
+        ApiServiceEndpoints.AcceptSPBDriver,
+        data: data,
+        options: options,
+      );
+
+      if (response.statusCode == 200) {
+        return true;
+      }
+
+      print('Failed to sync form with API: ${response.statusCode}');
+      return false;
+    } on DioException catch (e) {
+      print(
+        'DioException syncing form (attempt ${retryCount + 1}): ${e.message}',
+      );
+
+      // Retry for certain error types
+      if (retryCount < 3 &&
+          (e.type == DioExceptionType.connectionTimeout ||
+              e.type == DioExceptionType.sendTimeout ||
+              e.type == DioExceptionType.receiveTimeout ||
+              e.type == DioExceptionType.connectionError)) {
+        // Exponential backoff
+        final backoffDuration = Duration(seconds: 2 * (retryCount + 1));
+        await Future.delayed(backoffDuration);
+        return _syncWithApi(data, retryCount: retryCount + 1);
+      }
+
+      return false;
+    } catch (e) {
+      print('Error syncing form with API: $e');
+
+      // Retry for general errors
+      if (retryCount < 3) {
+        // Exponential backoff
+        final backoffDuration = Duration(seconds: 2 * (retryCount + 1));
+        await Future.delayed(backoffDuration);
+        return _syncWithApi(data, retryCount: retryCount + 1);
+      }
+
+      return false;
+    }
+  }
+
+  /// Validate form data before sending to API
+  void _validateFormData(Map<String, dynamic> data) {
+    final requiredFields = ['noSPB', 'createdBy', 'latitude', 'longitude'];
+
+    for (final field in requiredFields) {
+      if (!data.containsKey(field) ||
+          data[field] == null ||
+          data[field].toString().isEmpty) {
+        throw Exception('Missing required field: $field');
+      }
+    }
   }
 
   Future<void> _checkGpsPermission() async {
@@ -134,29 +358,14 @@ class _CekEspbPageState extends State<CekEspbPage>
         setState(() {
           _isConnected = hasConnectivity;
         });
+
+        // If connection is restored, try to sync pending forms
+        if (hasConnectivity && !_isConnected) {
+          _syncPendingForms();
+        }
       }
     });
   }
-
-  // Future<void> _loadSavedData() async {
-  //   try {
-  //     final prefs = await SharedPreferences.getInstance();
-  //     final spbId = widget.spb.noSpb;
-
-  //     if (mounted) {
-  //       setState(() {
-  //         _isDriverOrVehicleChanged = isDriverOrVehicleChanged;
-  //         _kendalaController.text = kendalaText;
-  //       });
-  //     }
-  //   } catch (e) {
-  //     if (mounted) {
-  //       setState(() {
-  //         _errorMessage = 'Failed to load saved data: $e';
-  //       });
-  //     }
-  //   }
-  // }
 
   void _showLocationServicesDisabledDialog() {
     showDialog(
@@ -325,11 +534,11 @@ class _CekEspbPageState extends State<CekEspbPage>
       // Prepare data for saving
       final data = {
         'noSPB': widget.spb.noSpb.toString(),
-        'status': 1, // Set status to accepted
+        'status': "1", // Set status to accepted
         'createdBy': widget.spb.driver.toString(),
         'latitude': _currentPosition?.latitude.toString() ?? "0.0",
         'longitude': _currentPosition?.longitude.toString() ?? "0.0",
-        'isAnyHandlingEx': "0", // Use string "0" instead of integer 0
+        'timestamp': DateTime.now().millisecondsSinceEpoch ~/ 1000,
       };
 
       // Save to sync service
@@ -346,6 +555,9 @@ class _CekEspbPageState extends State<CekEspbPage>
         return;
       }
 
+      // Also save to SQLite database directly
+      await _saveToDatabase(widget.spb.noSpb, data);
+
       if (_isConnected) {
         // Try to sync immediately if online
         final syncResult = await _syncService.syncForm(widget.spb.noSpb);
@@ -355,9 +567,7 @@ class _CekEspbPageState extends State<CekEspbPage>
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: const Text(
-                  'Kendala berhasil disimpan dan disinkronkan',
-                ),
+                content: const Text('SPB berhasil diterima dan disinkronkan'),
                 backgroundColor: Colors.green,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
@@ -373,7 +583,7 @@ class _CekEspbPageState extends State<CekEspbPage>
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: const Text(
-                  'Kendala disimpan tetapi gagal disinkronkan. Akan dicoba lagi nanti.',
+                  'SPB diterima tetapi gagal disinkronkan. Akan dicoba lagi nanti.',
                 ),
                 backgroundColor: Colors.orange,
                 behavior: SnackBarBehavior.floating,
@@ -391,7 +601,7 @@ class _CekEspbPageState extends State<CekEspbPage>
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text(
-                'Kendala disimpan secara lokal. Akan disinkronkan saat online.',
+                'SPB diterima secara lokal. Akan disinkronkan saat online.',
               ),
               backgroundColor: Colors.orange,
               behavior: SnackBarBehavior.floating,
@@ -719,115 +929,6 @@ class _CekEspbPageState extends State<CekEspbPage>
         ),
       ),
     );
-    // return Card(
-    //   elevation: 2,
-    //   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    //   child: Padding(
-    //     padding: const EdgeInsets.all(20),
-    //     child: Column(
-    //       crossAxisAlignment: CrossAxisAlignment.start,
-    //       children: [
-    //         Row(
-    //           children: [
-    //             Container(
-    //               padding: const EdgeInsets.all(10),
-    //               decoration: BoxDecoration(
-    //                 color: Theme.of(
-    //                   context,
-    //                 ).colorScheme.primary.withOpacity(0.1),
-    //                 borderRadius: BorderRadius.circular(12),
-    //               ),
-    //               child: Icon(
-    //                 Icons.description_outlined,
-    //                 color: Theme.of(context).colorScheme.primary,
-    //                 size: 24,
-    //               ),
-    //             ),
-    //             const SizedBox(width: 12),
-    //             Expanded(
-    //               child: Column(
-    //                 crossAxisAlignment: CrossAxisAlignment.start,
-    //                 children: [
-    //                   Text(
-    //                     'Informasi SPB',
-    //                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-    //                       fontWeight: FontWeight.bold,
-    //                     ),
-    //                   ),
-    //                   Text(
-    //                     'No. SPB: ${widget.spb.noSpb}',
-    //                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-    //                       color: Theme.of(
-    //                         context,
-    //                       ).colorScheme.onSurface.withOpacity(0.7),
-    //                     ),
-    //                   ),
-    //                 ],
-    //               ),
-    //             ),
-    //           ],
-    //         ),
-    //         const SizedBox(height: 24),
-
-    //         // Date and Time
-    //         _buildInfoGroup(
-    //           title: 'Informasi Waktu',
-    //           icon: Icons.calendar_today_rounded,
-    //           children: [
-    //             _buildInfoRow(
-    //               label: 'Tanggal Pengantaran',
-    //               value: DateFormat(
-    //                 'dd MMMM yyyy',
-    //               ).format(DateTime.parse(widget.spb.tglAntarBuah)),
-    //             ),
-    //             _buildInfoRow(
-    //               label: 'Waktu Pengantaran',
-    //               value: DateFormat(
-    //                 'HH:mm',
-    //               ).format(DateTime.parse(widget.spb.tglAntarBuah)),
-    //             ),
-    //           ],
-    //         ),
-
-    //         const Divider(height: 32),
-
-    //         // Vendor and Destination
-    //         _buildInfoGroup(
-    //           title: 'Informasi Pengiriman',
-    //           icon: Icons.local_shipping_rounded,
-    //           children: [
-    //             _buildInfoRow(
-    //               label: 'Vendor',
-    //               value: widget.spb.kodeVendor ?? 'N/A',
-    //             ),
-    //             _buildInfoRow(
-    //               label: 'Tujuan Pengantaran',
-    //               value: widget.spb.millTujuanName ?? 'N/A',
-    //             ),
-    //           ],
-    //         ),
-
-    //         const Divider(height: 32),
-
-    //         // Driver and Vehicle
-    //         _buildInfoGroup(
-    //           title: 'Informasi Kendaraan',
-    //           icon: Icons.person_outline_rounded,
-    //           children: [
-    //             _buildInfoRow(
-    //               label: 'Driver',
-    //               value: widget.spb.driver ?? 'N/A',
-    //             ),
-    //             _buildInfoRow(
-    //               label: 'No Polisi Truk',
-    //               value: widget.spb.noPolisi ?? 'N/A',
-    //             ),
-    //           ],
-    //         ),
-    //       ],
-    //     ),
-    //   ),
-    // );
   }
 
   Widget _buildKendalaFormCard() {
@@ -985,52 +1086,6 @@ class _CekEspbPageState extends State<CekEspbPage>
                 ),
       ),
     );
-    // return SizedBox(
-    //   width: double.infinity,
-    //   height: 56,
-    //   child: ElevatedButton(
-    //     onPressed: _isLoading ? null : _showConfirmationDialog,
-    //     style: ElevatedButton.styleFrom(
-    //       backgroundColor: AppTheme.errorColor,
-    //       foregroundColor: Colors.white,
-    //       disabledBackgroundColor: Colors.grey.shade300,
-    //       elevation: 2,
-    //       shape: RoundedRectangleBorder(
-    //         borderRadius: BorderRadius.circular(12),
-    //       ),
-    //     ),
-    //     child:
-    //         _isLoading
-    //             ? const SizedBox(
-    //               width: 24,
-    //               height: 24,
-    //               child: CircularProgressIndicator(
-    //                 color: Colors.white,
-    //                 strokeWidth: 2,
-    //               ),
-    //             )
-    //             : Row(
-    //               mainAxisAlignment: MainAxisAlignment.center,
-    //               children: [
-    //                 Icon(
-    //                   Icons.report_problem_outlined,
-    //                   color:
-    //                       _isDriverOrVehicleChanged && _isGpsActive
-    //                           ? Colors.white
-    //                           : Colors.grey.shade400,
-    //                 ),
-    //                 const SizedBox(width: 8),
-    //                 Text(
-    //                   'Simpan Kendala',
-    //                   style: const TextStyle(
-    //                     fontSize: 16,
-    //                     fontWeight: FontWeight.bold,
-    //                   ),
-    //                 ),
-    //               ],
-    //             ),
-    //   ),
-    // );
   }
 
   Widget _buildStatusCard({
