@@ -49,17 +49,17 @@ class DatabaseHelper {
     try {
       AppLogger.info('Creating database tables...');
 
-      // // Settings table for local storage
-      // await db.execute('''
-      //   CREATE TABLE settings (
-      //     id INTEGER PRIMARY KEY AUTOINCREMENT,
-      //     key TEXT UNIQUE NOT NULL,
-      //     value TEXT,
-      //     type TEXT NOT NULL DEFAULT 'string',
-      //     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-      //     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-      //   )
-      // ''');
+      // Settings table for local storage
+      await db.execute('''
+        CREATE TABLE settings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          key TEXT UNIQUE NOT NULL,
+          value TEXT,
+          type TEXT NOT NULL DEFAULT 'string',
+          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )
+      ''');
 
       // Users table with username support
       await db.execute('''
@@ -226,7 +226,7 @@ class DatabaseHelper {
       ''');
 
       // Create indexes for better performance
-      //await db.execute('CREATE INDEX idx_settings_key ON settings (key)');
+      await db.execute('CREATE INDEX idx_settings_key ON settings (key)');
       await db.execute('CREATE INDEX idx_users_username ON users (UserName)');
       await db.execute('CREATE INDEX idx_users_is_dirty ON users (is_dirty)');
       await db.execute('CREATE INDEX idx_users_synced_at ON users (synced_at)');
@@ -808,7 +808,7 @@ class DatabaseHelper {
   Future<void> clearAllData() async {
     final db = await database;
     await db.transaction((txn) async {
-      //await txn.delete('settings');
+      await txn.delete('settings');
       await txn.delete('users');
       //await txn.delete('data_entries');
       //await txn.delete('activity_logs');
