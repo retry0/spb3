@@ -5,14 +5,13 @@ import 'package:equatable/equatable.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../../core/utils/session_manager.dart';
-import '../../../../core/auth/auth_service.dart';
+import '../../../../core/auth/auth_service.dart' as auth_service;
 import '../../domain/entities/user.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/logout_usecase.dart';
 import '../../domain/usecases/refresh_token_usecase.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../../core/error/failures.dart';
-import '../../domain/entities/auth_status.dart';
 part 'auth_event.dart';
 part 'auth_state.dart';
 
@@ -21,7 +20,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final LogoutUseCase logoutUseCase;
   final RefreshTokenUseCase refreshTokenUseCase;
   final SessionManager? sessionManager;
-  final AuthService authService;
+  final auth_service.AuthService authService;
 
   // Connectivity monitoring
   final Connectivity _connectivity = Connectivity();
@@ -417,7 +416,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     switch (event.authState) {
-      case AuthStatus.authenticated:
+      case auth_service.AuthState.authenticated:
         // Get user data
         final userResult = await loginUseCase.repository.getCurrentUser();
 
@@ -439,21 +438,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         );
         break;
 
-      case AuthStatus.unauthenticated:
-      case AuthStatus.sessionExpired:
+      case auth_service.AuthState.unauthenticated:
+      case auth_service.AuthState.sessionExpired:
         emit(const AuthUnauthenticated());
         break;
 
-      case AuthStatus.error:
-        emit(AuthError(authService.authState.value.toString()));
+      case auth_service.AuthState.error:
+        emit(AuthError(event.authState.toString()));
         break;
 
-      case AuthStatus.authenticating:
-      case AuthStatus.loggingOut:
+      case auth_service.AuthState.authenticating:
+      case auth_service.AuthState.loggingOut:
         emit(const AuthLoading());
         break;
 
-      case AuthStatus.unknown:
+      case auth_service.AuthState.unknown:
         // Do nothing, wait for a definitive state
         break;
     }

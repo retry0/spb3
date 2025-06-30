@@ -40,18 +40,18 @@ class AuthTokenRefreshRequested extends AuthEvent {
 
 class AuthConnectivityChanged extends AuthEvent {
   final bool isConnected;
-  
+
   const AuthConnectivityChanged({required this.isConnected});
-  
+
   @override
   List<Object> get props => [isConnected];
 }
 
 class AuthSessionStatusChanged extends AuthEvent {
   final SessionState status;
-  
+
   const AuthSessionStatusChanged(this.status);
-  
+
   @override
   List<Object> get props => [status];
 }
@@ -61,10 +61,10 @@ class AuthRetryRequested extends AuthEvent {
 }
 
 class AuthServiceStateChanged extends AuthEvent {
-  final AuthState authState;
-  
+  final auth_service.AuthState authState;
+
   const AuthServiceStateChanged(this.authState);
-  
+
   @override
   List<Object> get props => [authState];
 }
