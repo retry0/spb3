@@ -5,7 +5,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/main/presentation/pages/main_page.dart';
-// import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/data/presentation/pages/data_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/spb/presentation/pages/spb_page.dart';
@@ -49,11 +48,6 @@ class AppRouter {
       ShellRoute(
         builder: (context, state, child) => MainPage(child: child),
         routes: [
-          // GoRoute(
-          //   path: '/home',
-          //   name: 'home',
-          //   builder: (context, state) => const HomePage(),
-          // ),
           GoRoute(
             path: '/data',
             name: 'data',
@@ -72,35 +66,34 @@ class AppRouter {
         ],
       ),
     ],
-    errorBuilder:
-        (context, state) => Scaffold(
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 64,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Page Not Found',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'The page ${state.uri.path} does not exist',
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () => context.go('/spb'),
-                  child: const Text('Go SPB'),
-                ),
-              ],
+    errorBuilder: (context, state) => Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Theme.of(context).colorScheme.error,
             ),
-          ),
+            const SizedBox(height: 16),
+            Text(
+              'Page Not Found',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'The page ${state.uri.path} does not exist',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => context.go('/spb'),
+              child: const Text('Go SPB'),
+            ),
+          ],
         ),
+      ),
+    ),
   );
 }
