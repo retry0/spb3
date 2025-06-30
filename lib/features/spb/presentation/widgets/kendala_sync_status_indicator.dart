@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../data/services/kendala_form_sqlite_service.dart';
+import '../../data/services/kendala_form_sync_service.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/theme/app_theme.dart';
 
@@ -31,7 +31,7 @@ class KendalaSyncStatusIndicator extends StatefulWidget {
 
 class _KendalaSyncStatusIndicatorState
     extends State<KendalaSyncStatusIndicator> {
-  final KendalaFormSqliteService _sqliteService = getIt<KendalaFormSqliteService>();
+  final KendalaFormSyncService _syncService = getIt<KendalaFormSyncService>();
   bool _isSynced = false;
   bool _isLoading = true;
 
@@ -48,7 +48,7 @@ class _KendalaSyncStatusIndicatorState
 
     if (widget.spbNumber != null) {
       // Check specific form sync status
-      final isSynced = await _sqliteService.isFormSynced(widget.spbNumber!);
+      final isSynced = await _syncService.isFormSynced(widget.spbNumber!);
 
       if (mounted) {
         setState(() {
@@ -58,7 +58,7 @@ class _KendalaSyncStatusIndicatorState
       }
     } else {
       // Check overall sync status
-      final stats = await _sqliteService.getSyncStats();
+      final stats = await _syncService.getSyncStats();
 
       if (mounted) {
         setState(() {
@@ -74,11 +74,11 @@ class _KendalaSyncStatusIndicatorState
       widget.onRetry!();
     } else {
       if (widget.spbNumber != null) {
-        _sqliteService.syncForm(widget.spbNumber!).then((_) {
+        _syncService.syncForm(widget.spbNumber!).then((_) {
           _checkSyncStatus();
         });
       } else {
-        _sqliteService.forceSyncNow().then((_) {
+        _syncService.forceSyncNow().then((_) {
           _checkSyncStatus();
         });
       }
@@ -92,13 +92,13 @@ class _KendalaSyncStatusIndicatorState
     }
 
     return ValueListenableBuilder<SyncStatus>(
-      valueListenable: _sqliteService.syncStatusNotifier,
+      valueListenable: _syncService.syncStatusNotifier,
       builder: (context, syncStatus, _) {
         return ValueListenableBuilder<String?>(
-          valueListenable: _sqliteService.errorMessageNotifier,
+          valueListenable: _syncService.errorMessageNotifier,
           builder: (context, errorMessage, _) {
             return ValueListenableBuilder<DateTime?>(
-              valueListenable: _sqliteService.lastSyncTimeNotifier,
+              valueListenable: _syncService.lastSyncTimeNotifier,
               builder: (context, lastSyncTime, _) {
                 // Determine current status
                 final bool isSyncing = syncStatus == SyncStatus.syncing;

@@ -44,9 +44,6 @@ import '../../features/spb/domain/usecases/generate_spb_qr_code_usecase.dart';
 import '../../features/spb/presentation/bloc/spb_bloc.dart';
 import '../../features/spb/data/services/kendala_form_sync_service.dart';
 import '../../features/spb/data/services/cek_spb_form_sync_service.dart';
-import '../../features/spb/data/services/kendala_form_sync_manager.dart';
-import '../../features/spb/data/services/kendala_form_sqlite_service.dart';
-import '../../features/spb/data/services/kendala_form_migration_service.dart';
 
 final getIt = GetIt.instance;
 
@@ -112,34 +109,7 @@ Future<void> configureDependencies() async {
     ),
   );
 
-  // Kendala Form SQLite Service
-  getIt.registerLazySingleton<KendalaFormSqliteService>(
-    () => KendalaFormSqliteService(
-      dio: getIt<Dio>(),
-      dbHelper: getIt<DatabaseHelper>(),
-      maxRetries: 3,
-      initialBackoff: const Duration(seconds: 5),
-    ),
-  );
-
-  // Kendala Form Migration Service
-  getIt.registerLazySingleton<KendalaFormMigrationService>(
-    () => KendalaFormMigrationService(
-      dbHelper: getIt<DatabaseHelper>(),
-    ),
-  );
-
-  // Kendala Form Sync Manager
-  getIt.registerLazySingleton<KendalaFormSyncManager>(
-    () => KendalaFormSyncManager(
-      dio: getIt<Dio>(),
-      dbHelper: getIt<DatabaseHelper>(),
-      maxRetries: 3,
-      initialBackoff: const Duration(seconds: 5),
-    ),
-  );
-
-  // Cek Form Sync Service
+  // Kendala Form Sync Service
   getIt.registerLazySingleton<CekFormSyncService>(
     () => CekFormSyncService(
       dio: getIt<Dio>(),
@@ -148,7 +118,7 @@ Future<void> configureDependencies() async {
     ),
   );
 
-  // Kendala Form Sync Service (legacy - will be removed after migration)
+  // Kendala Form Sync Service
   getIt.registerLazySingleton<KendalaFormSyncService>(
     () => KendalaFormSyncService(
       dio: getIt<Dio>(),

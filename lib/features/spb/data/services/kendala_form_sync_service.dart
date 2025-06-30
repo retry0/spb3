@@ -246,6 +246,7 @@ class KendalaFormSyncService {
 
     try {
       final data = jsonDecode(formDataJson) as Map<String, dynamic>;
+      print('dadsdad ${data}');
 
       // Fix the boolean conversion issue - ensure isAnyHandlingEx is properly formatted
       if (data.containsKey('isAnyHandlingEx')) {

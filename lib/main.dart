@@ -11,12 +11,11 @@ import 'core/utils/logger.dart';
 import 'core/storage/database_helper.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/services/sync_service.dart';
+//import 'core/utils/auth_sync_service.dart';
 import 'core/utils/session_manager.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/auth/presentation/widgets/session_timeout_dialog.dart';
 import 'features/theme/presentation/bloc/theme_bloc.dart';
-import 'features/spb/data/services/kendala_form_migration_service.dart';
-import 'features/spb/presentation/pages/migration_status_page.dart';
 import 'ui/screens/splash_screen.dart';
 import 'ui/theme/app_theme.dart';
 
@@ -53,42 +52,11 @@ void main() async {
     ),
   );
 
-  // Check if migration is needed
-  final needsMigration = await _checkIfMigrationNeeded();
-
-  runApp(MyApp(needsMigration: needsMigration));
-}
-
-Future<bool> _checkIfMigrationNeeded() async {
-  try {
-    // Check if kendala_forms table exists
-    final db = await DatabaseHelper.instance.database;
-    final tables = await db.rawQuery(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='kendala_forms'"
-    );
-    
-    if (tables.isEmpty) {
-      // Table doesn't exist, check if there's data in SharedPreferences
-      final prefs = await getIt<SharedPreferences>();
-      final allKeys = prefs.getKeys();
-      final formDataKeys = allKeys.where((key) => key.startsWith('kendala_form_data_')).toList();
-      
-      // If there's data in SharedPreferences but no table, migration is needed
-      return formDataKeys.isNotEmpty;
-    }
-    
-    // Table exists, no migration needed
-    return false;
-  } catch (e) {
-    AppLogger.error('Error checking migration status: $e');
-    return false;
-  }
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final bool needsMigration;
-  
-  const MyApp({super.key, this.needsMigration = false});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +73,7 @@ class MyApp extends StatelessWidget {
         // Provide global services
         RepositoryProvider.value(value: getIt<ConnectivityService>()),
         RepositoryProvider.value(value: getIt<SyncService>()),
+        //RepositoryProvider.value(value: getIt<AuthSyncService>()),
         RepositoryProvider.value(value: getIt<SessionManager>()),
       ],
       child: BlocBuilder<ThemeBloc, ThemeState>(
@@ -118,20 +87,6 @@ class MyApp extends StatelessWidget {
               themeMode: themeState.themeMode,
               routerConfig: AppRouter.router,
               builder: (context, child) {
-                // Show migration page if needed
-                if (needsMigration) {
-                  return MediaQuery(
-                    data: MediaQuery.of(context).copyWith(
-                      textScaler: TextScaler.linear(
-                        MediaQuery.of(
-                          context,
-                        ).textScaler.scale(1.0).clamp(0.8, 1.4),
-                      ),
-                    ),
-                    child: const MigrationStatusPage(),
-                  );
-                }
-                
                 return MediaQuery(
                   data: MediaQuery.of(context).copyWith(
                     textScaler: TextScaler.linear(
