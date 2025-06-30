@@ -242,8 +242,7 @@ class CekFormSyncService {
 
     try {
       final data = jsonDecode(formDataJson) as Map<String, dynamic>;
-
-      print('datasssssss $data');
+      
       // Fix the boolean conversion issue - ensure isAnyHandlingEx is properly formatted
       if (data.containsKey('status')) {
         // Convert to string "1" or "0" as expected by the API
@@ -256,7 +255,7 @@ class CekFormSyncService {
           final value = data['status'] as String;
           if (value != "0" && value != "1") {
             data['status'] =
-                value == "true" || value == "yes" || int.tryParse(value) == 1
+                value == "true" || value == "yes" || value == "True" || int.tryParse(value) == 1
                     ? "1"
                     : "0";
           }
@@ -341,7 +340,13 @@ class CekFormSyncService {
 
   /// Validate form data before sending to API
   void _validateFormData(Map<String, dynamic> data) {
-    final requiredFields = ['noSPB', 'createdBy', 'latitude', 'longitude'];
+    final requiredFields = [
+      'noSPB',
+      //'status',
+      'createdBy',
+      'latitude',
+      'longitude',
+    ];
 
     for (final field in requiredFields) {
       if (!data.containsKey(field) ||
@@ -350,6 +355,11 @@ class CekFormSyncService {
         throw Exception('Missing required field: $field');
       }
     }
+
+    // // Validate field types
+    // if (data['status'] != "2") {
+    //   throw Exception('Invalid status value. Expected "2" for kendala forms');
+    // }
   }
 
   /// Force sync now

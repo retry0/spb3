@@ -11,8 +11,8 @@ import '../../../../core/di/injection.dart';
 //import '../../../../core/config/api_endpoints.dart';
 import '../../data/models/spb_model.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../data/services/kendala_form_sync_service.dart';
-import '../widgets/kendala_sync_status_indicator.dart';
+import '../../data/services/kendala_form_sync_manager.dart';
+import '../widgets/kendala_form_sync_indicator.dart';
 
 class KendalaFormPage extends StatefulWidget {
   final SpbModel spb;
@@ -34,7 +34,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
   final TextEditingController _kendalaController = TextEditingController();
   final Dio _dio = getIt<Dio>();
   bool _isConnected = true;
-  final KendalaFormSyncService _syncService = getIt<KendalaFormSyncService>();
+  final KendalaFormSyncManager _syncManager = getIt<KendalaFormSyncManager>();
 
   // Animation controllers
   late AnimationController _animationController;
@@ -143,6 +143,20 @@ class _KendalaFormPageState extends State<KendalaFormPage>
 
   Future<void> _loadSavedData() async {
     try {
+      // First try to get data from SQLite database using the sync manager
+      final formData = await _syncManager.getFormData(widget.spb.noSpb);
+
+      if (formData != null) {
+        if (mounted) {
+          setState(() {
+            _isDriverOrVehicleChanged = formData['isAnyHandlingEx'] == "1";
+            _kendalaController.text = formData['alasan'] as String? ?? '';
+          });
+        }
+        return;
+      }
+
+      // Fallback to direct SharedPreferences access for backward compatibility
       final prefs = await SharedPreferences.getInstance();
       final spbId = widget.spb.noSpb;
 
@@ -349,12 +363,12 @@ class _KendalaFormPageState extends State<KendalaFormPage>
         'alasan': _kendalaController.text,
         'isAnyHandlingEx':
             _isDriverOrVehicleChanged
-                ? "1"
-                : "0", // Use string "1" or "0" instead of boolean
+                ? "True"
+                : "False", // Use string "1" or "0" instead of boolean
       };
 
-      // Save to sync service
-      final saveResult = await _syncService.saveForm(
+      // Save to sync manager
+      final saveResult = await _syncManager.saveForm(
         spbId: widget.spb.noSpb,
         formData: data,
         isDriverChanged: _isDriverOrVehicleChanged,
@@ -371,7 +385,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
 
       if (_isConnected) {
         // Try to sync immediately if online
-        final syncResult = await _syncService.syncForm(widget.spb.noSpb);
+        final syncResult = await _syncManager.syncForm(widget.spb.noSpb);
 
         if (syncResult) {
           // Show success message
@@ -544,9 +558,9 @@ class _KendalaFormPageState extends State<KendalaFormPage>
                     const SizedBox(height: 24),
 
                     // Sync status indicator
-                    KendalaSyncStatusIndicator(
+                    KendalaFormSyncIndicator(
                       spbNumber: widget.spb.noSpb,
-                      onRetry: () => _syncService.syncForm(widget.spb.noSpb),
+                      onRetry: () => _syncManager.syncForm(widget.spb.noSpb),
                     ),
 
                     const SizedBox(height: 24),

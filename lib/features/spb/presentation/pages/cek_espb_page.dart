@@ -68,7 +68,6 @@ class _CekEspbPageState extends State<CekEspbPage>
     _animationController.forward();
     _checkGpsPermission();
     _checkConnectivity();
-
     // Check for any pending forms to sync
     _syncPendingForms();
   }
@@ -161,7 +160,6 @@ class _CekEspbPageState extends State<CekEspbPage>
           where: 'no_spb = ?',
           whereArgs: [spbId],
         );
-
         // Remove from pending forms list
         final pendingForms = prefs.getStringList('pending_cek_forms') ?? [];
         pendingForms.remove(spbId);
@@ -238,7 +236,6 @@ class _CekEspbPageState extends State<CekEspbPage>
         sendTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 30),
       );
-
       // Make API request
       final response = await _dio.put(
         ApiServiceEndpoints.AcceptSPBDriver,
@@ -358,7 +355,6 @@ class _CekEspbPageState extends State<CekEspbPage>
         setState(() {
           _isConnected = hasConnectivity;
         });
-
         // If connection is restored, try to sync pending forms
         if (hasConnectivity && !_isConnected) {
           _syncPendingForms();
