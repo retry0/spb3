@@ -44,6 +44,7 @@ import '../../features/spb/domain/usecases/generate_spb_qr_code_usecase.dart';
 import '../../features/spb/presentation/bloc/spb_bloc.dart';
 import '../../features/spb/data/services/kendala_form_sync_service.dart';
 import '../../features/spb/data/services/cek_spb_form_sync_service.dart';
+import '../../features/spb/data/services/kendala_form_sync_manager.dart';
 
 final getIt = GetIt.instance;
 
@@ -109,7 +110,17 @@ Future<void> configureDependencies() async {
     ),
   );
 
-  // Kendala Form Sync Service
+  // Kendala Form Sync Manager
+  getIt.registerLazySingleton<KendalaFormSyncManager>(
+    () => KendalaFormSyncManager(
+      dio: getIt<Dio>(),
+      dbHelper: getIt<DatabaseHelper>(),
+      maxRetries: 3,
+      initialBackoff: const Duration(seconds: 5),
+    ),
+  );
+
+  // Cek Form Sync Service
   getIt.registerLazySingleton<CekFormSyncService>(
     () => CekFormSyncService(
       dio: getIt<Dio>(),

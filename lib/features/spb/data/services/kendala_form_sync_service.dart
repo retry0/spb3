@@ -246,19 +246,24 @@ class KendalaFormSyncService {
 
     try {
       final data = jsonDecode(formDataJson) as Map<String, dynamic>;
-      
+
       // Fix the boolean conversion issue - ensure isAnyHandlingEx is properly formatted
       if (data.containsKey('isAnyHandlingEx')) {
         // Convert to string "1" or "0" as expected by the API
         if (data['isAnyHandlingEx'] is bool) {
-          data['isAnyHandlingEx'] = (data['isAnyHandlingEx'] as bool) ? "1" : "0";
+          data['isAnyHandlingEx'] =
+              (data['isAnyHandlingEx'] as bool) ? "1" : "0";
         } else if (data['isAnyHandlingEx'] is int) {
-          data['isAnyHandlingEx'] = (data['isAnyHandlingEx'] as int) > 0 ? "1" : "0";
+          data['isAnyHandlingEx'] =
+              (data['isAnyHandlingEx'] as int) > 0 ? "1" : "0";
         } else if (data['isAnyHandlingEx'] is String) {
           // If it's already a string, make sure it's "1" or "0"
           final value = data['isAnyHandlingEx'] as String;
           if (value != "0" && value != "1") {
-            data['isAnyHandlingEx'] = value == "true" || value == "yes" || int.tryParse(value) == 1 ? "1" : "0";
+            data['isAnyHandlingEx'] =
+                value == "true" || value == "yes" || int.tryParse(value) == 1
+                    ? "1"
+                    : "0";
           }
         }
       }
