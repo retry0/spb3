@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'dart:math';
 
 import '../../core/theme/app_theme.dart';
+// import '../../core/widgets/network_error_widget.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -75,11 +76,26 @@ class _SplashScreenState extends State<SplashScreen>
       }
     } catch (e) {
       // Handle initialization errors
-      if (mounted) {
-        // Show error handling UI if needed
-      }
+      // if (mounted) {
+      //   _showInitializationError(e.toString());
+      // }
     }
   }
+
+  // void _showInitializationError(String error) {
+  //   Navigator.of(context).pushReplacement(
+  //     MaterialPageRoute(
+  //       builder:
+  //           (context) => NetworkErrorWidget(
+  //             errorMessage: 'Failed to initialize app: $error',
+  //             onRetry: () {
+  //               Navigator.of(context).pop();
+  //               _initializeApp();
+  //             },
+  //           ),
+  //     ),
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +106,19 @@ class _SplashScreenState extends State<SplashScreen>
         } else if (state is AuthUnauthenticated) {
           context.go('/login');
         } else if (state is AuthError) {
-          // Show error handling UI if needed
+          // Show network error widget for auth errors
+          // Navigator.of(context).pushReplacement(
+          //   MaterialPageRoute(
+          //     builder:
+          //         (context) => NetworkErrorWidget(
+          //           errorMessage: state.message,
+          //           onRetry: () {
+          //             Navigator.of(context).pop();
+          //             context.read<AuthBloc>().add(const AuthCheckRequested());
+          //           },
+          //         ),
+          //   ),
+          // );
         }
       },
       child: Scaffold(
@@ -136,6 +164,11 @@ class _SplashScreenState extends State<SplashScreen>
                               ],
                             ),
                             child: Center(
+                              // child: Icon(
+                              //   Icons.security,
+                              //   size: 64,
+                              //   color: AppTheme.primaryColor,
+                              // ),
                               child: Image.asset(
                                 'assets/icon/smart_logo.png',
                                 height: 200,
@@ -218,9 +251,10 @@ class _SplashScreenState extends State<SplashScreen>
                           ),
                           strokeWidth: 3,
                           // Add a subtle animation to the progress indicator
-                          value: _animationController.value < 0.7
-                              ? null
-                              : _waveAnimation(_animationController.value),
+                          value:
+                              _animationController.value < 0.7
+                                  ? null
+                                  : _waveAnimation(_animationController.value),
                         ),
                       ),
                     );
