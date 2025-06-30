@@ -18,7 +18,7 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
-  late Animation<double> _rotateAnimation;
+  late Animation<double> _loadingAnimation;
 
   @override
   void initState() {
@@ -37,17 +37,17 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(
         parent: _animationController,
         curve: const Interval(0.0, 0.6, curve: Curves.easeOutBack),
       ),
     );
 
-    _rotateAnimation = Tween<double>(begin: 0.0, end: 0.1).animate(
+    _loadingAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _animationController,
-        curve: const Interval(0.0, 0.5, curve: Curves.elasticOut),
+        curve: const Interval(0.6, 1.0, curve: Curves.easeInOut),
       ),
     );
 
@@ -89,142 +89,127 @@ class _SplashScreenState extends State<SplashScreen>
         }
       },
       child: Scaffold(
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Theme.of(context).colorScheme.primary,
-                Theme.of(context).colorScheme.secondary,
-              ],
-              stops: const [0.3, 1.0],
-            ),
-          ),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Animated logo
-                AnimatedBuilder(
-                  animation: _animationController,
-                  builder: (context, child) {
-                    return FadeTransition(
-                      opacity: _fadeAnimation,
-                      child: Transform.rotate(
-                        angle: _rotateAnimation.value,
-                        child: ScaleTransition(
-                          scale: _scaleAnimation,
-                          child: Container(
-                            width: 120,
-                            height: 120,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.2),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 10),
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Image.asset(
-                                'assets/icon/smart_logo.png',
-                                height: 200,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 40),
-
-                // Animated text
-                AnimatedBuilder(
-                  animation: _animationController,
-                  builder: (context, child) {
-                    return FadeTransition(
-                      opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
-                        CurvedAnimation(
-                          parent: _animationController,
-                          curve: const Interval(0.4, 0.8, curve: Curves.easeIn),
-                        ),
-                      ),
-                      child: const Text(
-                        "SPB Secure",
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Animated logo
+              AnimatedBuilder(
+                animation: _animationController,
+                builder: (context, child) {
+                  return FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: ScaleTransition(
+                      scale: _scaleAnimation,
+                      child: Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
                           color: Colors.white,
-                          letterSpacing: 1.2,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                              spreadRadius: 2,
+                            ),
+                          ],
                         ),
-                      ),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 16),
-                AnimatedBuilder(
-                  animation: _animationController,
-                  builder: (context, child) {
-                    return FadeTransition(
-                      opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
-                        CurvedAnimation(
-                          parent: _animationController,
-                          curve: const Interval(0.5, 0.9, curve: Curves.easeIn),
-                        ),
-                      ),
-                      child: const Text(
-                        "Your Security, Our Priority",
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white70,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 60),
-
-                // Loading indicator
-                AnimatedBuilder(
-                  animation: _animationController,
-                  builder: (context, child) {
-                    return FadeTransition(
-                      opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
-                        CurvedAnimation(
-                          parent: _animationController,
-                          curve: const Interval(0.6, 1.0, curve: Curves.easeIn),
-                        ),
-                      ),
-                      child: SizedBox(
-                        width: 40,
-                        height: 40,
-                        child: CircularProgressIndicator(
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Colors.white,
+                        child: Center(
+                          child: Image.asset(
+                            'assets/icon/smart_logo.png',
+                            height: 80,
                           ),
-                          strokeWidth: 3,
-                          // Add a subtle animation to the progress indicator
-                          value: _animationController.value < 0.7
-                              ? null
-                              : _waveAnimation(_animationController.value),
                         ),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 40),
 
-                const SizedBox(height: 24),
-              ],
-            ),
+              // Animated text
+              AnimatedBuilder(
+                animation: _animationController,
+                builder: (context, child) {
+                  return FadeTransition(
+                    opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
+                      CurvedAnimation(
+                        parent: _animationController,
+                        curve: const Interval(0.4, 0.8, curve: Curves.easeIn),
+                      ),
+                    ),
+                    child: Text(
+                      "SPB Secure",
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryColor,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 16),
+              AnimatedBuilder(
+                animation: _animationController,
+                builder: (context, child) {
+                  return FadeTransition(
+                    opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
+                      CurvedAnimation(
+                        parent: _animationController,
+                        curve: const Interval(0.5, 0.9, curve: Curves.easeIn),
+                      ),
+                    ),
+                    child: Text(
+                      "Your Security, Our Priority",
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 60),
+
+              // Loading indicator
+              AnimatedBuilder(
+                animation: _animationController,
+                builder: (context, child) {
+                  return FadeTransition(
+                    opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
+                      CurvedAnimation(
+                        parent: _animationController,
+                        curve: const Interval(0.6, 1.0, curve: Curves.easeIn),
+                      ),
+                    ),
+                    child: SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppTheme.primaryColor,
+                        ),
+                        strokeWidth: 3,
+                        // Add a subtle animation to the progress indicator
+                        value: _loadingAnimation.value < 1.0
+                            ? null
+                            : _waveAnimation(_animationController.value),
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 24),
+            ],
           ),
         ),
       ),
