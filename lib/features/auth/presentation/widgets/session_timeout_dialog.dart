@@ -3,7 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:async';
 
 import '../../../../core/utils/session_manager.dart';
-import '../../../../core/di/injection.dart'; // <-- Add this import (adjust path if needed)
+import '../../../../core/di/injection.dart';
+import '../../../../core/auth/auth_service.dart';
 import '../bloc/auth_bloc.dart';
 
 class SessionTimeoutDialog extends StatefulWidget {
@@ -107,10 +108,14 @@ class SessionTimeoutManager extends StatefulWidget {
 class _SessionTimeoutManagerState extends State<SessionTimeoutManager> {
   StreamSubscription? _sessionStateSubscription;
   bool _isDialogShowing = false;
+  
+  // Auth service for handling session state
+  late AuthService _authService;
 
   @override
   void initState() {
     super.initState();
+    _authService = getIt<AuthService>();
     _listenForSessionChanges();
   }
 
@@ -172,6 +177,9 @@ class _SessionTimeoutManagerState extends State<SessionTimeoutManager> {
   void _handleSessionContinue() {
     final sessionManager = getIt<SessionManager>();
     sessionManager.updateLastActivity();
+    
+    // Also refresh the token
+    _authService.forceTokenRefresh();
   }
 
   void _handleSessionTimeout() {

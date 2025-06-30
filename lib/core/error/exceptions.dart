@@ -1,3 +1,5 @@
+import 'package:equatable/equatable.dart';
+
 class AppException implements Exception {
   final String message;
   final String? endpoint;
@@ -109,6 +111,50 @@ class RateLimitException extends AppException {
 
 class OfflineException extends AppException {
   const OfflineException(
+    super.message, {
+    super.endpoint,
+    super.statusCode,
+    super.errorCode,
+    super.details,
+    super.retryAfterSeconds,
+  });
+}
+
+class TokenRefreshException extends AppException {
+  const TokenRefreshException(
+    super.message, {
+    super.endpoint,
+    super.statusCode,
+    super.errorCode,
+    super.details,
+    super.retryAfterSeconds,
+  });
+}
+
+class SessionExpiredException extends AppException {
+  const SessionExpiredException(
+    super.message, {
+    super.endpoint,
+    super.statusCode,
+    super.errorCode,
+    super.details,
+    super.retryAfterSeconds,
+  });
+}
+
+class MultiDeviceException extends AppException {
+  const MultiDeviceException(
+    super.message, {
+    super.endpoint,
+    super.statusCode,
+    super.errorCode,
+    super.details,
+    super.retryAfterSeconds,
+  });
+}
+
+class TokenRevokedException extends AppException {
+  const TokenRevokedException(
     super.message, {
     super.endpoint,
     super.statusCode,

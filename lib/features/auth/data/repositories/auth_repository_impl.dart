@@ -8,6 +8,7 @@ import '../../../../core/error/exceptions.dart';
 import '../../../../core/utils/jwt_decoder_util.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/utils/jwt_token_manager.dart';
+import '../../../../core/auth/token_manager.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/entities/auth_tokens.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -21,12 +22,13 @@ class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource remoteDataSource;
   final AuthLocalDataSource localDataSource;
   final Connectivity connectivity;
+  final TokenManager _tokenManager;
 
   AuthRepositoryImpl({
     required this.remoteDataSource,
     required this.localDataSource,
     required this.connectivity,
-  });
+  }) : _tokenManager = getIt<TokenManager>();
 
   @override
   Future<Either<Failure, AuthTokens>> loginWithUserName(
@@ -194,6 +196,7 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       // Clear any additional sensitive data here
       // This could include cached user data, preferences, etc.
+      await _tokenManager.clearTokens();
     } catch (e) {
       print('Error clearing sensitive data: $e');
     }
@@ -450,14 +453,58 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<Either<Failure, AuthTokens>> refreshToken() {
-    // TODO: implement refreshToken
-    throw UnimplementedError();
+  Future<Either<Failure, AuthTokens>> refreshToken() async {
+    try {
+      // Use the token manager to refresh the token
+      final newToken = await _tokenManager.refreshToken();
+      
+      if (newToken != null) {
+        return Right(AuthTokens(token: newToken));
+      } else {
+        return Left(AuthFailure('Failed to refresh token'));
+      }
+    } on AuthException catch (e) {
+      return Left(AuthFailure(e.message));
+    } on NetworkException catch (e) {
+      return Left(NetworkFailure(e.message));
+    } on RateLimitException catch (e) {
+      return Left(RateLimitFailure(
+        e.message,
+        retryAfterSeconds: e.retryAfterSeconds,
+      ));
+    } catch (e) {
+      return Left(ServerFailure('Unexpected error during token refresh: $e'));
+    }
   }
 
   @override
-  Future<Either<Failure, bool>> validateToken() {
-    // TODO: implement validateToken
-    throw UnimplementedError();
+  Future<Either<Failure, bool>> validateToken() async {
+    try {
+      // Check if we have a token
+      final token = await localDataSource.getAccessToken();
+      if (token == null) {
+        return const Right(false);
+      }
+      
+      // For offline tokens, consider them valid
+      if (token.startsWith('offline_')) {
+        return const Right(true);
+      }
+      
+      // For regular tokens, check expiration
+      if (JwtDecoder.isExpired(token)) {
+        // Token is expired, try to refresh
+        final refreshResult = await refreshToken();
+        return refreshResult.fold(
+          (failure) => const Right(false),
+          (tokens) => const Right(true),
+        );
+      }
+      
+      // Token is valid
+      return const Right(true);
+    } catch (e) {
+      return Left(AuthFailure('Failed to validate token: $e'));
+    }
   }
 }

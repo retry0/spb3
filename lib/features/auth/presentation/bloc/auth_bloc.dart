@@ -5,12 +5,13 @@ import 'package:equatable/equatable.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../../core/utils/session_manager.dart';
+import '../../../../core/auth/auth_service.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/logout_usecase.dart';
 import '../../domain/usecases/refresh_token_usecase.dart';
 import '../../../../core/utils/logger.dart';
-import '../../../../core/error/failures.dart'; // Add this import if your failure types are defined here
+import '../../../../core/error/failures.dart';
 part 'auth_event.dart';
 part 'auth_state.dart';
 
@@ -19,6 +20,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final LogoutUseCase logoutUseCase;
   final RefreshTokenUseCase refreshTokenUseCase;
   final SessionManager? sessionManager;
+  final AuthService authService;
 
   // Connectivity monitoring
   final Connectivity _connectivity = Connectivity();
@@ -33,11 +35,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   int _retryAttempt = 0;
   final int _maxRetryAttempts = 5;
   final Duration _initialBackoffDuration = const Duration(seconds: 5);
+  Timer? _retryTimer;
+  
+  // Auth service subscription
+  StreamSubscription? _authStateSubscription;
 
   AuthBloc({
     required this.loginUseCase,
     required this.logoutUseCase,
     required this.refreshTokenUseCase,
+    required this.authService,
     this.sessionManager,
   }) : super(const AuthInitial()) {
     on<AuthCheckRequested>(_onAuthCheckRequested);
@@ -48,6 +55,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthConnectivityChanged>(_onAuthConnectivityChanged);
     on<AuthSessionStatusChanged>(_onAuthSessionStatusChanged);
     on<AuthRetryRequested>(_onAuthRetryRequested);
+    on<AuthServiceStateChanged>(_onAuthServiceStateChanged);
 
     // Initialize connectivity monitoring
     _initConnectivityMonitoring();
@@ -56,16 +64,28 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     if (sessionManager != null) {
       sessionManager!.sessionState.addListener(_onSessionStateChanged);
     }
+    
+    // Listen for auth service state changes
+    _listenToAuthService();
   }
 
   @override
   Future<void> close() {
     _connectivitySubscription?.cancel();
     _tokenRefreshTimer?.cancel();
+    _retryTimer?.cancel();
+    _authStateSubscription?.cancel();
     if (sessionManager != null) {
       sessionManager!.sessionState.removeListener(_onSessionStateChanged);
     }
     return super.close();
+  }
+  
+  void _listenToAuthService() {
+    // Listen to auth service state changes
+    authService.authState.addListener(() {
+      add(AuthServiceStateChanged(authService.authState.value));
+    });
   }
 
   void _initConnectivityMonitoring() {
@@ -122,40 +142,32 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         }
       }
 
-      // Validate token
-      final tokenResult = await refreshTokenUseCase.validateToken();
-
-      await tokenResult.fold(
-        (failure) async {
-          // Token validation failed
-          emit(const AuthUnauthenticated());
-        },
-        (isValid) async {
-          if (isValid) {
-            // Token is valid, get user data
-            final userResult = await loginUseCase.repository.getCurrentUser();
-
-            await userResult.fold(
-              (failure) async {
-                emit(const AuthUnauthenticated());
-              },
-              (user) async {
-                emit(AuthAuthenticated(user: user));
-
-                // Start token refresh timer
-                _startTokenRefreshTimer();
-
-                // Update session activity if session manager is available
-                if (sessionManager != null) {
-                  await sessionManager!.updateLastActivity();
-                }
-              },
-            );
-          } else {
+      // Check if user is logged in with auth service
+      final isLoggedIn = await authService.isSessionValid();
+      
+      if (isLoggedIn) {
+        // Get user data
+        final userResult = await loginUseCase.repository.getCurrentUser();
+        
+        await userResult.fold(
+          (failure) async {
             emit(const AuthUnauthenticated());
-          }
-        },
-      );
+          },
+          (user) async {
+            emit(AuthAuthenticated(user: user));
+            
+            // Start token refresh timer
+            _startTokenRefreshTimer();
+            
+            // Update session activity if session manager is available
+            if (sessionManager != null) {
+              await sessionManager!.updateLastActivity();
+            }
+          },
+        );
+      } else {
+        emit(const AuthUnauthenticated());
+      }
     } catch (e) {
       emit(AuthError('Failed to check authentication status: $e'));
     }
@@ -170,34 +182,35 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     // Reset retry counter on new login attempt
     _retryAttempt = 0;
 
-    final result = await loginUseCase(event.userName, event.password);
-
-    await result.fold(
-      (failure) async {
-        emit(AuthError(failure.message));
-      },
-      (tokens) async {
-        // Get user from token
-        final userResult = await loginUseCase.repository.getCurrentUser();
-
-        await userResult.fold(
-          (failure) async {
-            emit(AuthError(failure.message));
-          },
-          (user) async {
-            emit(AuthAuthenticated(user: user));
-
-            // Start token refresh timer
-            _startTokenRefreshTimer();
-
-            // Update session activity if session manager is available
-            if (sessionManager != null) {
-              await sessionManager!.updateLastActivity();
-            }
-          },
-        );
-      },
-    );
+    // Use auth service for login
+    final success = await authService.login(event.userName, event.password);
+    
+    if (success) {
+      // Get user data
+      final userResult = await loginUseCase.repository.getCurrentUser();
+      
+      await userResult.fold(
+        (failure) async {
+          emit(AuthError(failure.message));
+        },
+        (user) async {
+          emit(AuthAuthenticated(user: user));
+          
+          // Start token refresh timer
+          _startTokenRefreshTimer();
+          
+          // Update session activity if session manager is available
+          if (sessionManager != null) {
+            await sessionManager!.updateLastActivity();
+          }
+        },
+      );
+    } else {
+      // Login failed
+      emit(AuthError(authService.authState.value == AuthState.error 
+          ? 'Authentication failed' 
+          : 'Invalid credentials'));
+    }
   }
 
   Future<void> _onAuthLogoutRequested(
@@ -211,8 +224,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       AppLogger.info('Logout requested: ${event.reason}');
     }
 
-    // Use the logout use case with retry mechanism
-    final result = await logoutUseCase(maxRetries: 3);
+    // Use auth service for logout
+    final success = await authService.logout();
 
     // Cancel token refresh timer
     _tokenRefreshTimer?.cancel();
@@ -222,14 +235,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await sessionManager!.clearSession();
     }
 
-    await result.fold(
-      (failure) async {
-        emit(AuthError(failure.message));
-      },
-      (_) async {
-        emit(const AuthUnauthenticated());
-      },
-    );
+    if (success) {
+      emit(const AuthUnauthenticated());
+    } else {
+      // Even if logout fails, we should consider the user logged out locally
+      emit(const AuthUnauthenticated());
+    }
   }
 
   Future<void> _onAuthTokenValidationRequested(
@@ -269,7 +280,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     // Don't change state to loading to avoid UI flicker during background refresh
 
-    final result = await refreshTokenUseCase();
+    final result = await refreshTokenUseCase.forceRefresh();
 
     await result.fold(
       (failure) async {
@@ -282,6 +293,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           if (_isConnected && _retryAttempt < _maxRetryAttempts) {
             _scheduleTokenRefreshRetry();
           }
+        } else if (failure is RateLimitFailure) {
+          // For rate limit failures, log but don't log out
+          AppLogger.warning('Token refresh rate limited: ${failure.message}');
         } else {
           // For other errors, log out
           emit(const AuthUnauthenticated());
@@ -310,7 +324,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     );
 
     // Schedule retry
-    Future.delayed(backoffDuration, () {
+    _retryTimer?.cancel();
+    _retryTimer = Timer(backoffDuration, () {
       _retryAttempt++;
       add(const AuthTokenRefreshRequested());
     });
@@ -322,7 +337,33 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     // If we just got connected and we're authenticated, refresh token
     if (event.isConnected && state is AuthAuthenticated) {
-      add(const AuthTokenRefreshRequested());
+      // Validate token with server after reconnection
+      final result = await refreshTokenUseCase.handleReconnection();
+      
+      await result.fold(
+        (failure) async {
+          // Token validation failed after reconnection
+          AppLogger.warning('Token validation failed after reconnection: ${failure.message}');
+          
+          // If it's a network error, don't log out - we'll try again later
+          if (failure is NetworkFailure || failure is TimeoutFailure) {
+            // Schedule retry with backoff
+            if (_retryAttempt < _maxRetryAttempts) {
+              _scheduleTokenRefreshRetry();
+            }
+          } else {
+            // For other errors, log out
+            emit(const AuthUnauthenticated());
+          }
+        },
+        (isValid) async {
+          if (!isValid) {
+            // Token is invalid after reconnection
+            emit(const AuthUnauthenticated());
+          }
+          // If valid, keep current state
+        },
+      );
     }
 
     // No state change needed, just updating internal connectivity status
@@ -367,6 +408,53 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } else if (state is AuthUnauthenticated) {
       // If we're unauthenticated, we can't retry
       // User needs to log in again
+    }
+  }
+  
+  Future<void> _onAuthServiceStateChanged(
+    AuthServiceStateChanged event,
+    Emitter<AuthState> emit,
+  ) async {
+    switch (event.authState) {
+      case AuthState.authenticated:
+        // Get user data
+        final userResult = await loginUseCase.repository.getCurrentUser();
+        
+        await userResult.fold(
+          (failure) async {
+            emit(AuthError(failure.message));
+          },
+          (user) async {
+            emit(AuthAuthenticated(user: user));
+            
+            // Start token refresh timer
+            _startTokenRefreshTimer();
+            
+            // Update session activity if session manager is available
+            if (sessionManager != null) {
+              await sessionManager!.updateLastActivity();
+            }
+          },
+        );
+        break;
+        
+      case AuthState.unauthenticated:
+      case AuthState.sessionExpired:
+        emit(const AuthUnauthenticated());
+        break;
+        
+      case AuthState.error:
+        emit(AuthError(authService.authState.value.toString()));
+        break;
+        
+      case AuthState.authenticating:
+      case AuthState.loggingOut:
+        emit(const AuthLoading());
+        break;
+        
+      case AuthState.unknown:
+        // Do nothing, wait for a definitive state
+        break;
     }
   }
 }

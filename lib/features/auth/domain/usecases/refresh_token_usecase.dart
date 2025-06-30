@@ -1,14 +1,18 @@
 import 'package:dartz/dartz.dart';
 
 import '../../../../core/error/failures.dart';
+import '../../../../core/auth/token_manager.dart';
+import '../../../../core/di/injection.dart';
 import '../entities/auth_tokens.dart';
 import '../repositories/auth_repository.dart';
 
 /// Use case for refreshing authentication tokens
 class RefreshTokenUseCase {
   final AuthRepository repository;
+  final TokenManager _tokenManager;
 
-  RefreshTokenUseCase(this.repository);
+  RefreshTokenUseCase(this.repository)
+      : _tokenManager = getIt<TokenManager>();
 
   /// Refreshes the authentication token if needed
   /// Returns a new token if successful, or a failure if the token cannot be refreshed
@@ -24,7 +28,8 @@ class RefreshTokenUseCase {
         },
         (isValid) async {
           if (isValid) {
-            // Token is still valid, get it
+            // Token is still valid, but we'll refresh it anyway
+            // This is useful for extending the session
             return await repository.refreshToken();
           } else {
             // Token is invalid, try to refresh it
@@ -44,6 +49,33 @@ class RefreshTokenUseCase {
       return await repository.validateToken();
     } catch (e) {
       return Left(AuthFailure('Failed to validate authentication token: $e'));
+    }
+  }
+  
+  /// Manually force a token refresh
+  Future<Either<Failure, AuthTokens>> forceRefresh() async {
+    try {
+      // Force token refresh through the token manager
+      final newToken = await _tokenManager.refreshToken();
+      
+      if (newToken != null) {
+        // Create a new AuthTokens object with the refreshed token
+        return Right(AuthTokens(token: newToken));
+      } else {
+        return Left(AuthFailure('Failed to refresh token'));
+      }
+    } catch (e) {
+      return Left(AuthFailure('Failed to force token refresh: $e'));
+    }
+  }
+  
+  /// Handle offline to online transition
+  Future<Either<Failure, bool>> handleReconnection() async {
+    try {
+      final isValid = await _tokenManager.validateTokenOnReconnect();
+      return Right(isValid);
+    } catch (e) {
+      return Left(AuthFailure('Failed to validate token after reconnection: $e'));
     }
   }
 }

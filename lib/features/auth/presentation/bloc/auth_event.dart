@@ -59,3 +59,12 @@ class AuthSessionStatusChanged extends AuthEvent {
 class AuthRetryRequested extends AuthEvent {
   const AuthRetryRequested();
 }
+
+class AuthServiceStateChanged extends AuthEvent {
+  final AuthState authState;
+  
+  const AuthServiceStateChanged(this.authState);
+  
+  @override
+  List<Object> get props => [authState];
+}

@@ -18,6 +18,9 @@ import '../utils/jwt_token_manager.dart';
 import '../utils/session_manager.dart';
 import '../services/connectivity_service.dart';
 import '../services/sync_service.dart';
+import '../auth/token_manager.dart';
+import '../auth/auth_service.dart';
+import '../auth/auth_interceptor.dart';
 import '../../features/auth/data/datasources/auth_remote_datasource.dart';
 import '../../features/auth/data/datasources/auth_local_datasource.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
@@ -81,8 +84,18 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton<JwtTokenManager>(
     () => JwtTokenManager(getIt<FlutterSecureStorage>()),
   );
-
-  getIt.registerLazySingleton<Dio>(() => DioClient.createDio());
+  
+  // New Token Manager
+  getIt.registerLazySingleton<TokenManager>(
+    () => TokenManager(
+      getIt<SecureStorage>(),
+      getIt<DatabaseHelper>(),
+    ),
+  );
+  
+  // Create Dio instance
+  final dio = DioClient.createDio();
+  getIt.registerLazySingleton<Dio>(() => dio);
 
   // Connectivity
   getIt.registerLazySingleton<Connectivity>(() => Connectivity());
@@ -90,6 +103,24 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton<ConnectivityService>(
     () => ConnectivityService(getIt<Connectivity>()),
   );
+  
+  // Auth Service
+  getIt.registerLazySingleton<AuthService>(
+    () => AuthService(
+      dio: getIt<Dio>(),
+      tokenManager: getIt<TokenManager>(),
+      secureStorage: getIt<SecureStorage>(),
+      connectivity: getIt<Connectivity>(),
+    ),
+  );
+  
+  // Auth Interceptor
+  getIt.registerLazySingleton<AuthInterceptor>(
+    () => AuthInterceptor(getIt<TokenManager>()),
+  );
+  
+  // Add auth interceptor to Dio
+  dio.interceptors.add(getIt<AuthInterceptor>());
 
   // User Profile Repository
   getIt.registerLazySingleton<UserProfileRepository>(
@@ -223,6 +254,7 @@ Future<void> configureDependencies() async {
       logoutUseCase: getIt<LogoutUseCase>(),
       refreshTokenUseCase: getIt<RefreshTokenUseCase>(),
       sessionManager: getIt<SessionManager>(),
+      authService: getIt<AuthService>(),
     ),
   );
 

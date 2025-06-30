@@ -17,7 +17,7 @@ abstract class AuthRepository {
   );
   Future<bool> isLoggedIn();
   
-  // New methods for token management
+  // Token management
   Future<Either<Failure, bool>> validateToken();
   Future<Either<Failure, AuthTokens>> refreshToken();
 }
