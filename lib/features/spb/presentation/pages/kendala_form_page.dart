@@ -8,7 +8,8 @@ import 'dart:convert';
 import '../pages/spb_page.dart';
 
 import '../../../../core/di/injection.dart';
-//import '../../../../core/config/api_endpoints.dart';
+import '../../../../core/config/api_endpoints.dart';
+import '../../../../core/storage/database_helper.dart';
 import '../../data/models/spb_model.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/services/kendala_form_sync_service.dart';
@@ -35,6 +36,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
   final Dio _dio = getIt<Dio>();
   bool _isConnected = true;
   final KendalaFormSyncService _syncService = getIt<KendalaFormSyncService>();
+  final DatabaseHelper _dbHelper = getIt<DatabaseHelper>();
 
   // Animation controllers
   late AnimationController _animationController;
@@ -143,6 +145,20 @@ class _KendalaFormPageState extends State<KendalaFormPage>
 
   Future<void> _loadSavedData() async {
     try {
+      // First try to load from SQLite
+      final sqliteData = await _dbHelper.getKendalaForm(widget.spb.noSpb);
+      
+      if (sqliteData != null) {
+        if (mounted) {
+          setState(() {
+            _isDriverOrVehicleChanged = sqliteData['is_any_handling_ex'] == "1";
+            _kendalaController.text = sqliteData['alasan'] as String? ?? '';
+          });
+        }
+        return;
+      }
+      
+      // Fallback to SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       final spbId = widget.spb.noSpb;
 
@@ -348,7 +364,24 @@ class _KendalaFormPageState extends State<KendalaFormPage>
         'status': "2", // Set status to indicate kendala/issue
         'alasan': _kendalaController.text,
         'isAnyHandlingEx': _isDriverOrVehicleChanged ? "1" : "0", // Use string "1" or "0" instead of boolean
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
       };
+
+      // Save to SQLite database
+      final sqliteData = {
+        'no_spb': widget.spb.noSpb,
+        'created_by': widget.spb.driver.toString(),
+        'latitude': _currentPosition?.latitude.toString() ?? "0.0",
+        'longitude': _currentPosition?.longitude.toString() ?? "0.0",
+        'alasan': _kendalaController.text,
+        'is_any_handling_ex': _isDriverOrVehicleChanged ? "1" : "0",
+        'status': "2",
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'is_synced': 0,
+        'retry_count': 0,
+      };
+      
+      await _dbHelper.saveKendalaForm(sqliteData);
 
       // Save to sync service
       final saveResult = await _syncService.saveForm(

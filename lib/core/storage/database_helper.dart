@@ -224,6 +224,27 @@ class DatabaseHelper {
         )
       ''');
 
+      // Kendala form data table for storing kendala form submissions
+      await db.execute('''
+        CREATE TABLE kendala_form_data (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          no_spb TEXT UNIQUE NOT NULL,
+          created_by TEXT NOT NULL,
+          latitude TEXT NOT NULL,
+          longitude TEXT NOT NULL,
+          alasan TEXT NOT NULL,
+          is_any_handling_ex TEXT NOT NULL,
+          status TEXT NOT NULL,
+          timestamp INTEGER NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          retry_count INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT,
+          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          last_sync_attempt INTEGER
+        )
+      ''');
+
       // Create indexes for better performance
       //await db.execute('CREATE INDEX idx_settings_key ON settings (key)');
       await db.execute('CREATE INDEX idx_users_username ON users (UserName)');
@@ -294,6 +315,15 @@ class DatabaseHelper {
       await db.execute(
         'CREATE INDEX idx_accept_form_data_timestamp ON accept_form_data (timestamp)',
       );
+      await db.execute(
+        'CREATE INDEX idx_kendala_form_data_no_spb ON kendala_form_data (no_spb)',
+      );
+      await db.execute(
+        'CREATE INDEX idx_kendala_form_data_is_synced ON kendala_form_data (is_synced)',
+      );
+      await db.execute(
+        'CREATE INDEX idx_kendala_form_data_timestamp ON kendala_form_data (timestamp)',
+      );
 
       AppLogger.info('Database tables created successfully');
     } catch (e) {
@@ -333,6 +363,11 @@ class DatabaseHelper {
     if (oldVersion < 7) {
       // Migration to add ESPB form data table
       await _migrateToAddEspbFormDataTable(db);
+    }
+
+    if (oldVersion < 8) {
+      // Migration to add Kendala form data table
+      await _migrateToAddKendalaFormDataTable(db);
     }
   }
 
@@ -679,6 +714,60 @@ class DatabaseHelper {
     }
   }
 
+  Future<void> _migrateToAddKendalaFormDataTable(Database db) async {
+    try {
+      AppLogger.info('Migrating to add Kendala form data table...');
+
+      // Check if kendala_form_data table already exists
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='kendala_form_data'",
+      );
+
+      if (tables.isEmpty) {
+        // Create kendala_form_data table
+        await db.execute('''
+          CREATE TABLE kendala_form_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            no_spb TEXT UNIQUE NOT NULL,
+            created_by TEXT NOT NULL,
+            latitude TEXT NOT NULL,
+            longitude TEXT NOT NULL,
+            alasan TEXT NOT NULL,
+            is_any_handling_ex TEXT NOT NULL,
+            status TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            is_synced INTEGER NOT NULL DEFAULT 0,
+            retry_count INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            last_sync_attempt INTEGER
+          )
+        ''');
+
+        // Create indexes
+        await db.execute(
+          'CREATE INDEX idx_kendala_form_data_no_spb ON kendala_form_data (no_spb)',
+        );
+        await db.execute(
+          'CREATE INDEX idx_kendala_form_data_is_synced ON kendala_form_data (is_synced)',
+        );
+        await db.execute(
+          'CREATE INDEX idx_kendala_form_data_timestamp ON kendala_form_data (timestamp)',
+        );
+
+        AppLogger.info('Kendala form data table created successfully');
+      } else {
+        AppLogger.info(
+          'Kendala form data table already exists, skipping migration',
+        );
+      }
+    } catch (e) {
+      AppLogger.error('Failed to migrate to add Kendala form data table', e);
+      rethrow;
+    }
+  }
+
   // Generic CRUD operations
   Future<int> insert(String table, Map<String, dynamic> data) async {
     final db = await database;
@@ -791,6 +880,7 @@ class DatabaseHelper {
       //await txn.delete('auth_sync_queue');
       await txn.delete('espb_form_data');
       await txn.delete('accept_form_data');
+      await txn.delete('kendala_form_data');
     });
     AppLogger.info('All database data cleared');
   }
@@ -1028,6 +1118,150 @@ class DatabaseHelper {
     } catch (e) {
       AppLogger.error('Failed to remove auth sync item', e);
       rethrow;
+    }
+  }
+
+  // Kendala form data operations
+  Future<int> saveKendalaForm(Map<String, dynamic> formData) async {
+    final db = await database;
+    try {
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      
+      // Check if record already exists
+      final existingRecords = await db.query(
+        'kendala_form_data',
+        where: 'no_spb = ?',
+        whereArgs: [formData['no_spb']],
+        limit: 1,
+      );
+
+      if (existingRecords.isEmpty) {
+        // Insert new record
+        formData['created_at'] = now;
+        formData['updated_at'] = now;
+        return await db.insert('kendala_form_data', formData);
+      } else {
+        // Update existing record
+        formData['updated_at'] = now;
+        return await db.update(
+          'kendala_form_data',
+          formData,
+          where: 'no_spb = ?',
+          whereArgs: [formData['no_spb']],
+        );
+      }
+    } catch (e) {
+      AppLogger.error('Failed to save kendala form data', e);
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingKendalaForms() async {
+    final db = await database;
+    try {
+      return await db.query(
+        'kendala_form_data',
+        where: 'is_synced = ?',
+        whereArgs: [0],
+        orderBy: 'timestamp ASC',
+      );
+    } catch (e) {
+      AppLogger.error('Failed to get pending kendala forms', e);
+      return [];
+    }
+  }
+
+  Future<int> updateKendalaFormSyncStatus(
+    String noSpb, 
+    bool isSynced, 
+    {String? errorMessage}
+  ) async {
+    final db = await database;
+    try {
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      
+      return await db.update(
+        'kendala_form_data',
+        {
+          'is_synced': isSynced ? 1 : 0,
+          'last_sync_attempt': now,
+          'last_error': errorMessage,
+          'updated_at': now,
+        },
+        where: 'no_spb = ?',
+        whereArgs: [noSpb],
+      );
+    } catch (e) {
+      AppLogger.error('Failed to update kendala form sync status', e);
+      rethrow;
+    }
+  }
+
+  Future<int> incrementKendalaFormRetryCount(String noSpb) async {
+    final db = await database;
+    try {
+      // Get current retry count
+      final results = await db.query(
+        'kendala_form_data',
+        columns: ['retry_count'],
+        where: 'no_spb = ?',
+        whereArgs: [noSpb],
+        limit: 1,
+      );
+      
+      if (results.isEmpty) {
+        return 0;
+      }
+      
+      final currentRetryCount = results.first['retry_count'] as int? ?? 0;
+      final newRetryCount = currentRetryCount + 1;
+      
+      // Update retry count
+      await db.update(
+        'kendala_form_data',
+        {
+          'retry_count': newRetryCount,
+          'updated_at': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        },
+        where: 'no_spb = ?',
+        whereArgs: [noSpb],
+      );
+      
+      return newRetryCount;
+    } catch (e) {
+      AppLogger.error('Failed to increment kendala form retry count', e);
+      return 0;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getKendalaForm(String noSpb) async {
+    final db = await database;
+    try {
+      final results = await db.query(
+        'kendala_form_data',
+        where: 'no_spb = ?',
+        whereArgs: [noSpb],
+        limit: 1,
+      );
+      
+      return results.isNotEmpty ? results.first : null;
+    } catch (e) {
+      AppLogger.error('Failed to get kendala form', e);
+      return null;
+    }
+  }
+
+  // Migrate data from SharedPreferences to SQLite
+  Future<void> migrateKendalaFormsFromSharedPreferences() async {
+    try {
+      AppLogger.info('Migrating kendala forms from SharedPreferences to SQLite...');
+      
+      // This would be implemented in a real app to read from SharedPreferences
+      // and insert into SQLite database
+      
+      AppLogger.info('Kendala forms migration completed');
+    } catch (e) {
+      AppLogger.error('Failed to migrate kendala forms from SharedPreferences', e);
     }
   }
 }

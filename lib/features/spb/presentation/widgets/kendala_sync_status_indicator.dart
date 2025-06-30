@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../data/services/kendala_form_sync_service.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/storage/database_helper.dart';
 
 /// A widget that displays the sync status of kendala forms
 class KendalaSyncStatusIndicator extends StatefulWidget {
@@ -32,8 +33,12 @@ class KendalaSyncStatusIndicator extends StatefulWidget {
 class _KendalaSyncStatusIndicatorState
     extends State<KendalaSyncStatusIndicator> {
   final KendalaFormSyncService _syncService = getIt<KendalaFormSyncService>();
+  final DatabaseHelper _dbHelper = getIt<DatabaseHelper>();
   bool _isSynced = false;
   bool _isLoading = true;
+  int _retryCount = 0;
+  String? _lastError;
+  DateTime? _lastSyncAttempt;
 
   @override
   void initState() {
@@ -48,24 +53,64 @@ class _KendalaSyncStatusIndicatorState
 
     if (widget.spbNumber != null) {
       // Check specific form sync status
-      final isSynced = await _syncService.isFormSynced(widget.spbNumber!);
-
-      if (mounted) {
-        setState(() {
-          _isSynced = isSynced;
-          _isLoading = false;
-        });
-      }
+      await _checkSpecificFormStatus(widget.spbNumber!);
     } else {
       // Check overall sync status
-      final stats = await _syncService.getSyncStats();
+      await _checkOverallSyncStatus();
+    }
 
-      if (mounted) {
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _checkSpecificFormStatus(String spbNumber) async {
+    try {
+      // First check SQLite
+      final sqliteData = await _dbHelper.getKendalaForm(spbNumber);
+      
+      if (sqliteData != null) {
         setState(() {
-          _isSynced = stats.pendingForms == 0;
-          _isLoading = false;
+          _isSynced = sqliteData['is_synced'] == 1;
+          _retryCount = sqliteData['retry_count'] as int? ?? 0;
+          _lastError = sqliteData['last_error'] as String?;
+          
+          final lastSyncAttemptTimestamp = sqliteData['last_sync_attempt'] as int?;
+          _lastSyncAttempt = lastSyncAttemptTimestamp != null 
+              ? DateTime.fromMillisecondsSinceEpoch(lastSyncAttemptTimestamp * 1000)
+              : null;
         });
+        return;
       }
+      
+      // Fallback to SharedPreferences
+      final isSynced = await _syncService.isFormSynced(spbNumber);
+
+      setState(() {
+        _isSynced = isSynced;
+      });
+    } catch (e) {
+      // Handle error silently
+      setState(() {
+        _isSynced = false;
+        _lastError = 'Error checking sync status: $e';
+      });
+    }
+  }
+
+  Future<void> _checkOverallSyncStatus() async {
+    try {
+      final stats = await _syncService.getSyncStats();
+      
+      setState(() {
+        _isSynced = stats.pendingForms == 0;
+      });
+    } catch (e) {
+      // Handle error silently
+      setState(() {
+        _isSynced = false;
+        _lastError = 'Error checking sync status: $e';
+      });
     }
   }
 
@@ -102,20 +147,20 @@ class _KendalaSyncStatusIndicatorState
               builder: (context, lastSyncTime, _) {
                 // Determine current status
                 final bool isSyncing = syncStatus == SyncStatus.syncing;
-                final bool hasError = errorMessage != null && !_isSynced;
+                final bool hasError = (_lastError != null || errorMessage != null) && !_isSynced;
 
                 if (widget.compact) {
                   return _buildCompactIndicator(
                     isSyncing,
                     hasError,
-                    lastSyncTime,
+                    lastSyncTime ?? _lastSyncAttempt,
                   );
                 } else {
                   return _buildFullIndicator(
                     isSyncing,
                     hasError,
-                    errorMessage,
-                    lastSyncTime,
+                    _lastError ?? errorMessage,
+                    lastSyncTime ?? _lastSyncAttempt,
                   );
                 }
               },
@@ -233,6 +278,11 @@ class _KendalaSyncStatusIndicatorState
       color = AppTheme.errorColor;
       title = 'Sync Failed';
       message = errorMessage ?? 'Failed to synchronize data with server';
+      
+      // Add retry count information if available
+      if (_retryCount > 0) {
+        message += ' (Retry attempts: $_retryCount)';
+      }
     } else {
       icon = Icons.cloud_upload;
       color = AppTheme.warningColor;
