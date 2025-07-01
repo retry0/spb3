@@ -174,18 +174,18 @@ class DatabaseHelper {
       ''');
 
       // // Auth sync queue table for offline authentication operations
-      // await db.execute('''
-      //   CREATE TABLE auth_sync_queue (
-      //     id INTEGER PRIMARY KEY AUTOINCREMENT,
-      //     operation TEXT NOT NULL,
-      //     data TEXT NOT NULL,
-      //     status TEXT NOT NULL DEFAULT 'pending',
-      //     retry_count INTEGER NOT NULL DEFAULT 0,
-      //     last_error TEXT,
-      //     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-      //     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-      //   )
-      // ''');
+      await db.execute('''
+        CREATE TABLE auth_sync_queue (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          operation TEXT NOT NULL,
+          data TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          retry_count INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT,
+          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )
+      ''');
       // ESPB form data table for storing form submissions
       await db.execute('''
         CREATE TABLE accept_form_data (
@@ -817,7 +817,7 @@ class DatabaseHelper {
       await txn.delete('spb_data');
       await txn.delete('auth_tokens');
       await txn.delete('user_credentials');
-      //await txn.delete('auth_sync_queue');
+      await txn.delete('auth_sync_queue');
       await txn.delete('accept_form_data');
       await txn.delete('kendala_form_data');
     });
