@@ -1212,12 +1212,15 @@ class _SpbDataTableState extends State<SpbDataTable>
                             'Mill Tujuan',
                             spb.millTujuanName ?? spb.millTujuan,
                           ),
-                          _buildDetailRow('Status', _getStatusText(spb.status)),
-                          if (spb.keterangan != null &&
-                              spb.keterangan!.isNotEmpty)
-                            _buildDetailRow('Keterangan', spb.keterangan!),
+                          // _buildDetailRow('Status', _getStatusText(spb.status)),
+                          // if (spb.keterangan != null &&
+                          //     spb.keterangan!.isNotEmpty)
+                          //   _buildDetailRow(
+                          //     'Keterangan',
+                          //     spb.keterangan ?? 'N/A',
+                          //   ),
                           _buildDetailRow(
-                            'Driver',
+                            'Supir',
                             spb.driverName ?? spb.driver ?? 'N/A',
                           ),
                           _buildDetailRow('No Polisi', spb.noPolisi ?? 'N/A'),
@@ -1230,10 +1233,10 @@ class _SpbDataTableState extends State<SpbDataTable>
                             'Total Berat Taksasi',
                             spb.totBeratTaksasi ?? 'N/A',
                           ),
-                          _buildDetailRow(
-                            'Synced',
-                            spb.isSynced ? 'Yes' : 'No',
-                          ),
+                          // _buildDetailRow(
+                          //   'Synced',
+                          //   spb.isSynced ? 'Yes' : 'No',
+                          // ),
                           if (!spb.isSynced) ...[
                             const SizedBox(height: 16),
                             Container(
