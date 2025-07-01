@@ -63,7 +63,6 @@ class SpbPdfGenerator {
       final file = File(saveLocation);
       if (password != null && password.isNotEmpty) {
         await file.writeAsBytes(await pdf.save(
-          onlySelected: false,
           userPassword: password,
         ));
       } else {
