@@ -14,6 +14,7 @@ import 'spb_qr_code_modal.dart';
 import '../pages/cek_espb_page.dart';
 import '../pages/kendala_form_page.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../utils/pdf_generator.dart';
 
 class SpbDataTable extends StatefulWidget {
   const SpbDataTable({super.key});
@@ -1314,6 +1315,16 @@ class _SpbDataTableState extends State<SpbDataTable>
                             foregroundColor: Colors.white,
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () => _downloadPdf(context, spb),
+                          icon: const Icon(Icons.download, size: 16),
+                          label: const Text('Download SPB'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1322,6 +1333,114 @@ class _SpbDataTableState extends State<SpbDataTable>
             ),
           ),
     );
+  }
+
+  Future<void> _downloadPdf(BuildContext context, SpbModel spb) async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Generating PDF...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Generate PDF
+      final pdfGenerator = SpbPdfGenerator();
+      final result = await pdfGenerator.generateSpbPdf(
+        spb: spb,
+        driverName: spb.driverName ?? spb.driver ?? 'N/A',
+        password: spb.noSpb, // Use SPB number as password
+      );
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Show result
+      if (result.success) {
+        // Show success dialog
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('PDF Generated Successfully'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('PDF has been saved to:'),
+                  const SizedBox(height: 8),
+                  Text(
+                    result.filePath!,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'The PDF is password protected. Use the SPB number as the password.',
+                    style: TextStyle(color: Colors.blue),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      } else {
+        // Show error dialog
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Error'),
+              content: Text('Failed to generate PDF: ${result.errorMessage}'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if open
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+
+      // Show error dialog
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Error'),
+            content: Text('An unexpected error occurred: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
 
   Widget _buildDetailRow(String label, String value) {
