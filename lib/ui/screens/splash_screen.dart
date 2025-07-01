@@ -75,9 +75,6 @@ class _SplashScreenState extends State<SplashScreen>
       }
     } catch (e) {
       // Handle initialization errors
-      if (mounted) {
-        // Show error handling UI if needed
-      }
     }
   }
 
@@ -89,8 +86,6 @@ class _SplashScreenState extends State<SplashScreen>
           context.go('/spb');
         } else if (state is AuthUnauthenticated) {
           context.go('/login');
-        } else if (state is AuthError) {
-          // Show error handling UI if needed
         }
       },
       child: Scaffold(
@@ -161,7 +156,7 @@ class _SplashScreenState extends State<SplashScreen>
                         ),
                       ),
                       child: const Text(
-                        "SPB Secure",
+                        "e-SPB SMART",
                         style: TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.bold,
@@ -182,14 +177,6 @@ class _SplashScreenState extends State<SplashScreen>
                         CurvedAnimation(
                           parent: _animationController,
                           curve: const Interval(0.5, 0.9, curve: Curves.easeIn),
-                        ),
-                      ),
-                      child: const Text(
-                        "Your Security, Our Priority",
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white70,
-                          letterSpacing: 0.5,
                         ),
                       ),
                     );
@@ -218,9 +205,10 @@ class _SplashScreenState extends State<SplashScreen>
                           ),
                           strokeWidth: 3,
                           // Add a subtle animation to the progress indicator
-                          value: _animationController.value < 0.7
-                              ? null
-                              : _waveAnimation(_animationController.value),
+                          value:
+                              _animationController.value < 0.7
+                                  ? null
+                                  : _waveAnimation(_animationController.value),
                         ),
                       ),
                     );

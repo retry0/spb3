@@ -185,10 +185,10 @@ class _LoginFormState extends State<LoginForm>
                 keyboardType: TextInputType.text,
                 textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
-                  labelText: 'Nama Pengguna',
+                  labelText: 'Nomor Handphone',
                   prefixIcon: const Icon(Icons.person_outlined),
-                  helperText: 'Silakan masukkan nama pengguna Anda',
-                  hintText: 'e.g. johndoe',
+                  helperText: 'Silakan masukkan nomor handphone Anda',
+                  hintText: 'e.g. 08',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

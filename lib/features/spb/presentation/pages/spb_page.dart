@@ -72,21 +72,21 @@ class SpbPage extends StatelessWidget {
                 }
               },
             ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () {
-                final authState = context.read<AuthBloc>().state;
-                if (authState is AuthAuthenticated) {
-                  context.read<SpbBloc>().add(
-                    SpbRefreshRequested(
-                      driver: authState.user.UserName,
-                      kdVendor: authState.user.Id,
-                    ),
-                  );
-                }
-              },
-              tooltip: 'Refresh',
-            ),
+            // IconButton(
+            //   icon: const Icon(Icons.refresh),
+            //   onPressed: () {
+            //     final authState = context.read<AuthBloc>().state;
+            //     if (authState is AuthAuthenticated) {
+            //       context.read<SpbBloc>().add(
+            //         SpbRefreshRequested(
+            //           driver: authState.user.UserName,
+            //           kdVendor: authState.user.Id,
+            //         ),
+            //       );
+            //     }
+            //   },
+            //   tooltip: 'Refresh',
+            // ),
           ],
         ),
         body: const SpbDataTable(),

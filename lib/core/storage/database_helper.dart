@@ -108,21 +108,21 @@ class DatabaseHelper {
       // ''');
 
       // // Sync queue table for offline operations
-      // await db.execute('''
-      //   CREATE TABLE sync_queue (
-      //     id INTEGER PRIMARY KEY AUTOINCREMENT,
-      //     operation TEXT NOT NULL,
-      //     table_name TEXT NOT NULL,
-      //     record_id TEXT NOT NULL,
-      //     data TEXT NOT NULL,
-      //     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-      //     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-      //     retry_count INTEGER NOT NULL DEFAULT 0,
-      //     last_error TEXT,
-      //     priority INTEGER NOT NULL DEFAULT 5,
-      //     status TEXT NOT NULL DEFAULT 'pending'
-      //   )
-      // ''');
+      await db.execute('''
+        CREATE TABLE sync_queue (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          operation TEXT NOT NULL,
+          table_name TEXT NOT NULL,
+          record_id TEXT NOT NULL,
+          data TEXT NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          retry_count INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT,
+          priority INTEGER NOT NULL DEFAULT 5,
+          status TEXT NOT NULL DEFAULT 'pending'
+        )
+      ''');
 
       // SPB data table
       await db.execute('''
@@ -245,15 +245,15 @@ class DatabaseHelper {
       // await db.execute(
       //   'CREATE INDEX idx_activity_logs_created ON activity_logs (created_at)',
       // );
-      // await db.execute(
-      //   'CREATE INDEX idx_sync_queue_operation ON sync_queue (operation)',
-      // );
-      // await db.execute(
-      //   'CREATE INDEX idx_sync_queue_status ON sync_queue (status)',
-      // );
-      // await db.execute(
-      //   'CREATE INDEX idx_sync_queue_priority ON sync_queue (priority)',
-      // );
+      await db.execute(
+        'CREATE INDEX idx_sync_queue_operation ON sync_queue (operation)',
+      );
+      await db.execute(
+        'CREATE INDEX idx_sync_queue_status ON sync_queue (status)',
+      );
+      await db.execute(
+        'CREATE INDEX idx_sync_queue_priority ON sync_queue (priority)',
+      );
       await db.execute('CREATE INDEX idx_spb_data_driver ON spb_data (driver)');
       await db.execute(
         'CREATE INDEX idx_spb_data_kd_vendor ON spb_data (kode_vendor)',
@@ -271,11 +271,12 @@ class DatabaseHelper {
       await db.execute(
         'CREATE INDEX idx_auth_tokens_expires_at ON auth_tokens (expires_at)',
       );
-      // await db.execute(
-      //   'CREATE INDEX idx_auth_sync_queue_status ON auth_sync_queue (status)',
-      // );
-      // await db.execute(
-      //   'CREATE INDEX idx_auth_sync_queue_operation ON auth_sync_queue (operation)',
+      await db.execute(
+        'CREATE INDEX idx_auth_sync_queue_status ON auth_sync_queue (status)',
+      );
+      await db.execute(
+        'CREATE INDEX idx_auth_sync_queue_operation ON auth_sync_queue (operation)',
+      );
       await db.execute(
         'CREATE INDEX idx_accept_form_data_no_spb ON accept_form_data (no_spb)',
       );
@@ -812,7 +813,7 @@ class DatabaseHelper {
       await txn.delete('users');
       //await txn.delete('data_entries');
       //await txn.delete('activity_logs');
-      //await txn.delete('sync_queue');
+      await txn.delete('sync_queue');
       await txn.delete('spb_data');
       await txn.delete('auth_tokens');
       await txn.delete('user_credentials');
@@ -837,7 +838,9 @@ class DatabaseHelper {
       // First, ensure the user exists in the users table
       final userExists = await _ensureUserExists(db, userId, username);
       if (!userExists) {
-        throw Exception('User does not exist in the database. Cannot save token.');
+        throw Exception(
+          'User does not exist in the database. Cannot save token.',
+        );
       }
 
       // Delete any existing tokens for this user
@@ -865,13 +868,17 @@ class DatabaseHelper {
   }
 
   // Helper method to ensure user exists before saving token
-  Future<bool> _ensureUserExists(Database db, String userId, String username) async {
+  Future<bool> _ensureUserExists(
+    Database db,
+    String userId,
+    String username,
+  ) async {
     final users = await db.query(
       'users',
       where: 'id = ? OR UserName = ?',
       whereArgs: [userId, username],
     );
-    
+
     if (users.isEmpty) {
       // Create a basic user record if it doesn't exist
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -889,7 +896,7 @@ class DatabaseHelper {
         return false;
       }
     }
-    
+
     return true;
   }
 

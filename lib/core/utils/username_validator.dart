@@ -4,7 +4,7 @@ class UserNameValidator {
   /// Validates userName format and returns error message if invalid
   static String? validateFormat(String? userName) {
     if (userName == null || userName.isEmpty) {
-      return 'Harap masukkan nama pengguna';
+      return 'Harap masukkan nomor handphone';
     }
     return null; // Valid userName
   }

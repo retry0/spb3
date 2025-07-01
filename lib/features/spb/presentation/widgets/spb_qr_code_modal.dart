@@ -460,11 +460,13 @@ class _SpbQrCodeModalState extends State<SpbQrCodeModal> {
               'Mill Tujuan',
               widget.spb.millTujuanName ?? widget.spb.millTujuan,
             ),
-            _buildInfoRow('Status', widget.spb.status),
-            _buildInfoRow('Driver', widget.driver),
-            if (widget.spb.keterangan != null &&
-                widget.spb.keterangan!.isNotEmpty)
-              _buildInfoRow('Keterangan', widget.spb.keterangan!),
+            //_buildInfoRow('Status', widget.spb.status),
+            _buildInfoRow('Supir', widget.spb.driverName),
+            _buildInfoRow('No Polisi', widget.spb.noPolisi),
+
+            // if (widget.spb.keterangan != null &&
+            //     widget.spb.keterangan!.isNotEmpty)
+            //   _buildInfoRow('Keterangan', widget.spb.keterangan!),
           ],
         ],
       ),

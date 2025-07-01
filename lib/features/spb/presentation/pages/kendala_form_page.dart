@@ -731,6 +731,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
               ],
             ),
 
+            // const Divider(height: 32),
             const Divider(height: 32),
 
             // Driver and Vehicle
@@ -745,6 +746,37 @@ class _KendalaFormPageState extends State<KendalaFormPage>
                 _buildInfoRow(
                   label: 'No Polisi Truk',
                   value: widget.spb.noPolisi ?? 'N/A',
+                ),
+              ],
+            ),
+            // Cargo Details
+            _buildInfoGroup(
+              title: 'Informasi Muatan',
+              icon: Icons.inventory_2_outlined,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoRow(
+                        label: 'Jumlah Janjang',
+                        value: '${widget.spb.jumJjg.toString()} Kg',
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildInfoRow(
+                        label: 'Brondolan',
+                        value: '${widget.spb.brondolan.toString()} Kg',
+                      ),
+                    ),
+                  ],
+                ),
+                _buildInfoRow(
+                  label: 'Total Berat Taksasi',
+                  value: '${widget.spb.totBeratTaksasi.toString()} Kg',
+                  valueStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               ],
             ),
@@ -980,7 +1012,7 @@ class _KendalaFormPageState extends State<KendalaFormPage>
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Simpan Kendala',
+                      'Kirim Kendala',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,

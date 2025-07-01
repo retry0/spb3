@@ -62,10 +62,12 @@ class MyApp extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
-          create: (context) => getIt<AuthBloc>()..add(const AuthCheckRequested()),
+          create:
+              (context) => getIt<AuthBloc>()..add(const AuthCheckRequested()),
         ),
         BlocProvider(
-          create: (context) => getIt<ThemeBloc>()..add(const ThemeInitialized()),
+          create:
+              (context) => getIt<ThemeBloc>()..add(const ThemeInitialized()),
         ),
         // Provide global services
         RepositoryProvider.value(value: getIt<ConnectivityService>()),
@@ -86,7 +88,9 @@ class MyApp extends StatelessWidget {
                 return MediaQuery(
                   data: MediaQuery.of(context).copyWith(
                     textScaler: TextScaler.linear(
-                      MediaQuery.of(context).textScaler.scale(1.0).clamp(0.8, 1.4),
+                      MediaQuery.of(
+                        context,
+                      ).textScaler.scale(1.0).clamp(0.8, 1.4),
                     ),
                   ),
                   child: child!,
