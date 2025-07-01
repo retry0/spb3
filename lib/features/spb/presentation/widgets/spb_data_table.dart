@@ -1304,17 +1304,17 @@ class _SpbDataTableState extends State<SpbDataTable>
                           onPressed: () => Navigator.of(context).pop(),
                           child: const Text('Close'),
                         ),
-                        const SizedBox(width: 8),
-                        ElevatedButton.icon(
-                          onPressed: () => _showQrCodeModal(context, spb),
-                          icon: const Icon(Icons.qr_code, size: 16),
-                          label: const Text('Generate QR'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Theme.of(context).colorScheme.primary,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
+                        // const SizedBox(width: 8),
+                        // ElevatedButton.icon(
+                        //   onPressed: () => _showQrCodeModal(context, spb),
+                        //   icon: const Icon(Icons.qr_code, size: 16),
+                        //   label: const Text('Generate QR'),
+                        //   style: ElevatedButton.styleFrom(
+                        //     backgroundColor:
+                        //         Theme.of(context).colorScheme.primary,
+                        //     foregroundColor: Colors.white,
+                        //   ),
+                        // ),
                         const SizedBox(width: 8),
                         ElevatedButton.icon(
                           onPressed: () => _downloadPdf(context, spb),
@@ -1359,10 +1359,10 @@ class _SpbDataTableState extends State<SpbDataTable>
       final pdfGenerator = SpbPdfGenerator();
       final result = await pdfGenerator.generateSpbPdf(
         spb: spb,
-        driverName: spb.driverName ?? spb.driver ?? 'N/A',
-        password: spb.noSpb, // Use SPB number as password
+        driverName: spb.driver,
+        //password: spb.noSpb, // Use SPB number as password
       );
-
+      print('location pdf ${result}');
       // Close loading dialog
       Navigator.of(context).pop();
 
@@ -1373,12 +1373,12 @@ class _SpbDataTableState extends State<SpbDataTable>
           context: context,
           builder: (BuildContext context) {
             return AlertDialog(
-              title: const Text('PDF Generated Successfully'),
+              title: const Text('Generate PDF Berhasil'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('PDF has been saved to:'),
+                  const Text('PDF berhasil simpan :'),
                   const SizedBox(height: 8),
                   Text(
                     result.filePath!,
@@ -1386,7 +1386,7 @@ class _SpbDataTableState extends State<SpbDataTable>
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'The PDF is password protected. Use the SPB number as the password.',
+                    'PDF dilindungi dengan password menggunakan nomor handphone',
                     style: TextStyle(color: Colors.blue),
                   ),
                 ],
