@@ -865,7 +865,7 @@ class _CekEspbPageState extends State<CekEspbPage>
                 ),
                 _buildInfoRow(
                   label: 'Tujuan Pengantaran',
-                  value: widget.spb.millTujuan,
+                  value: widget.spb.millTujuanName,
                 ),
               ],
             ),
@@ -1072,7 +1072,7 @@ class _CekEspbPageState extends State<CekEspbPage>
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Terima SPB',
+                      'SIMPAN',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,

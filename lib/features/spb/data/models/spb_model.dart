@@ -11,6 +11,7 @@ class SpbModel extends Equatable {
   final String status;
   final String keterangan;
   final String kodeVendor;
+  final String namaVendor;
   final String driver;
   final String noPolisi;
   final String jumJjg; // Changed from int? to String?
@@ -29,6 +30,7 @@ class SpbModel extends Equatable {
     required this.status,
     required this.keterangan,
     required this.kodeVendor,
+    required this.namaVendor,
     required this.driver,
     required this.noPolisi,
     required this.jumJjg,
@@ -49,6 +51,7 @@ class SpbModel extends Equatable {
       status: json['status'].toString(),
       keterangan: json['keterangan'].toString(),
       kodeVendor: json['kodeVendor'].toString(),
+      namaVendor: json['namaVendor'].toString(),
       driver: json['driver'].toString(),
       noPolisi: json['noPolisi'].toString(),
       jumJjg: json['jumJjg'].toString(), // Convert to String
@@ -75,6 +78,7 @@ class SpbModel extends Equatable {
     'status': status,
     'keterangan': keterangan,
     'kodeVendor': kodeVendor,
+    'namaVendor': namaVendor,
     'driver': driver,
     'noPolisi': noPolisi,
     'jumJjg': jumJjg,
@@ -96,6 +100,7 @@ class SpbModel extends Equatable {
       status: map['status'] as String,
       keterangan: map['keterangan'].toString(),
       kodeVendor: map['kode_vendor'].toString(),
+      namaVendor: map['namaVendor'].toString(),
       driver: map['driver'].toString(),
       noPolisi: map['no_polisi'].toString(),
       jumJjg: map['jum_jjg'].toString(), // Convert to String
@@ -124,6 +129,7 @@ class SpbModel extends Equatable {
       'status': status,
       'keterangan': keterangan,
       'kode_vendor': kodeVendor,
+      'namaVendor': namaVendor,
       'driver': driver,
       'no_polisi': noPolisi,
       'jum_jjg': jumJjg, // Store as String
@@ -146,6 +152,7 @@ class SpbModel extends Equatable {
     String? status,
     String? keterangan,
     String? kodeVendor,
+    String? namaVendor,
     String? driver,
     String? noPolisi,
     String? jumJjg,
@@ -164,6 +171,7 @@ class SpbModel extends Equatable {
       status: status ?? this.status,
       keterangan: keterangan ?? this.keterangan,
       kodeVendor: kodeVendor ?? this.kodeVendor,
+      namaVendor: namaVendor ?? this.namaVendor,
       driver: driver ?? this.driver,
       noPolisi: noPolisi ?? this.noPolisi,
       jumJjg: jumJjg ?? this.jumJjg,
@@ -185,6 +193,7 @@ class SpbModel extends Equatable {
     status,
     keterangan,
     kodeVendor,
+    namaVendor,
     driver,
     noPolisi,
     jumJjg,

@@ -4,6 +4,7 @@ import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'dart:typed_data';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../data/models/spb_model.dart';
 
 /// A dialog that requests storage permission and saves QR code to gallery
 class SaveQrDialog extends StatefulWidget {
@@ -16,11 +17,14 @@ class SaveQrDialog extends StatefulWidget {
   /// Optional quality for the saved image (1-100)
   final int quality;
 
+  final String spb;
+
   const SaveQrDialog({
     super.key,
     required this.imageData,
     this.imageName,
     this.quality = 100,
+    required this.spb,
   });
 
   /// Show the save QR dialog
@@ -29,6 +33,7 @@ class SaveQrDialog extends StatefulWidget {
     required Uint8List imageData,
     String? imageName,
     int quality = 100,
+    required String spb,
   }) {
     return showDialog<bool>(
       context: context,
@@ -38,6 +43,7 @@ class SaveQrDialog extends StatefulWidget {
             imageData: imageData,
             imageName: imageName,
             quality: quality,
+            spb: spb,
           ),
     );
   }
@@ -241,9 +247,7 @@ class _SaveQrDialogState extends State<SaveQrDialog> {
 
   Future<void> _saveImageToGallery() async {
     try {
-      final imageName =
-          widget.imageName ??
-          'qr_code_${DateTime.now().millisecondsSinceEpoch}';
+      final imageName = widget.imageName ?? 'SPB_${widget.spb}';
 
       final result = await ImageGallerySaverPlus.saveImage(
         widget.imageData,

@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart' show RefreshController;
 import 'dart:async';
+import 'dart:typed_data';
+import 'dart:io';
 
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../bloc/spb_bloc.dart';
@@ -15,6 +17,10 @@ import '../pages/cek_espb_page.dart';
 import '../pages/kendala_form_page.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../utils/pdf_generator.dart';
+import 'package:file_saver/file_saver.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class SpbDataTable extends StatefulWidget {
   const SpbDataTable({super.key});
@@ -30,6 +36,8 @@ class _SpbDataTableState extends State<SpbDataTable>
   final ValueNotifier<bool> _isSearchExpanded = ValueNotifier<bool>(false);
   final ValueNotifier<String> _searchQuery = ValueNotifier<String>('');
   final ScrollController _horizontalScrollController = ScrollController();
+  final TextEditingController _pathController = TextEditingController();
+  final TextEditingController _fileNameController = TextEditingController();
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -193,6 +201,109 @@ class _SpbDataTableState extends State<SpbDataTable>
           backgroundColor: Colors.red,
           duration: const Duration(seconds: 3),
         ),
+      );
+    }
+  }
+
+  Future<void> _downloadPdf(BuildContext context, SpbModel spb) async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Generating PDF...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Generate PDF
+      final pdfGenerator = SpbPdfGenerator();
+      final result = await pdfGenerator.generateSpbPdf(
+        spb: spb,
+        driverName: spb.driverName ?? spb.driver ?? 'N/A',
+        password: spb.noSpb, // Use SPB number as password
+      );
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Show result
+      if (result.success) {
+        // Show success dialog
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('PDF berhasil generate'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('PDF Berhasil disimpan folder Download:'),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'PDF dilindungi kata sandi. Gunakan nomor handphone sebagai kata sandi.',
+                    style: TextStyle(color: Colors.blue),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      } else {
+        // Show error dialog
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Error'),
+              content: Text('Failed to generate PDF: ${result.errorMessage}'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if open
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+
+      // Show error dialog
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Error'),
+            content: Text('An unexpected error occurred: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
       );
     }
   }
@@ -652,7 +763,7 @@ class _SpbDataTableState extends State<SpbDataTable>
   Widget _buildSpbCard(BuildContext context, SpbModel spb) {
     final isPending = spb.status == "0";
     final isSynced = spb.isSynced;
-
+    final isAccept = spb.status == "1";
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
@@ -751,17 +862,26 @@ class _SpbDataTableState extends State<SpbDataTable>
                     ),
                   ],
                   const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.qr_code, size: 20),
-                    color: Colors.blue,
-                    onPressed: () => _showQrCodeModal(context, spb),
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
+                  if (isAccept) ...[
+                    _buildActionButton(
+                      context,
+                      label: 'QR Code',
+                      icon: Icons.qr_code,
+                      color: Colors.blue,
+                      onPressed: () => _showQrCodeModal(context, spb),
                     ),
-                    padding: EdgeInsets.zero,
-                    tooltip: 'QR Code',
-                  ),
+                    // IconButton(
+                    //   icon: const Icon(Icons.qr_code, size: 20),
+                    //   color: Colors.blue,
+                    //   onPressed: () => _showQrCodeModal(context, spb),
+                    //   constraints: const BoxConstraints(
+                    //     minWidth: 36,
+                    //     minHeight: 36,
+                    //   ),
+                    //   padding: EdgeInsets.zero,
+                    //   tooltip: 'QR Code',
+                    // ),
+                  ],
                 ],
               ),
             ],
@@ -1304,7 +1424,7 @@ class _SpbDataTableState extends State<SpbDataTable>
                           onPressed: () => Navigator.of(context).pop(),
                           child: const Text('Close'),
                         ),
-                        // const SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         // ElevatedButton.icon(
                         //   onPressed: () => _showQrCodeModal(context, spb),
                         //   icon: const Icon(Icons.qr_code, size: 16),
@@ -1318,6 +1438,7 @@ class _SpbDataTableState extends State<SpbDataTable>
                         const SizedBox(width: 8),
                         ElevatedButton.icon(
                           onPressed: () => _downloadPdf(context, spb),
+                          //onPressed: () => _saveFile(context),
                           icon: const Icon(Icons.download, size: 16),
                           label: const Text('Download SPB'),
                           style: ElevatedButton.styleFrom(
@@ -1333,114 +1454,6 @@ class _SpbDataTableState extends State<SpbDataTable>
             ),
           ),
     );
-  }
-
-  Future<void> _downloadPdf(BuildContext context, SpbModel spb) async {
-    try {
-      // Show loading dialog
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          return const AlertDialog(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Generating PDF...'),
-              ],
-            ),
-          );
-        },
-      );
-
-      // Generate PDF
-      final pdfGenerator = SpbPdfGenerator();
-      final result = await pdfGenerator.generateSpbPdf(
-        spb: spb,
-        driverName: spb.driver,
-        //password: spb.noSpb, // Use SPB number as password
-      );
-      print('location pdf ${result}');
-      // Close loading dialog
-      Navigator.of(context).pop();
-
-      // Show result
-      if (result.success) {
-        // Show success dialog
-        showDialog(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: const Text('Generate PDF Berhasil'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('PDF berhasil simpan :'),
-                  const SizedBox(height: 8),
-                  Text(
-                    result.filePath!,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'PDF dilindungi dengan password menggunakan nomor handphone',
-                    style: TextStyle(color: Colors.blue),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Close'),
-                ),
-              ],
-            );
-          },
-        );
-      } else {
-        // Show error dialog
-        showDialog(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: const Text('Error'),
-              content: Text('Failed to generate PDF: ${result.errorMessage}'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Close'),
-                ),
-              ],
-            );
-          },
-        );
-      }
-    } catch (e) {
-      // Close loading dialog if open
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-
-      // Show error dialog
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Error'),
-            content: Text('An unexpected error occurred: $e'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Close'),
-              ),
-            ],
-          );
-        },
-      );
-    }
   }
 
   Widget _buildDetailRow(String label, String value) {

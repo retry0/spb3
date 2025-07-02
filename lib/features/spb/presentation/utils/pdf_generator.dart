@@ -2,10 +2,9 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
-//import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 import '../../data/models/spb_model.dart';
@@ -25,64 +24,27 @@ class SpbPdfGenerator {
     String? password,
   }) async {
     try {
-      // Check storage permission
-      final permissionStatus = await _checkPermission();
-      if (!permissionStatus) {
+      final status = await Permission.storage.request();
+      if (!status.isGranted) {
+        print('Storage permission denied');
         return PdfResult(
           success: false,
           errorMessage: 'Storage permission denied',
         );
       }
-
-      // // Show file picker to select save location
-      final saveLocation = await _pickSaveLocation(spb.noSpb);
-      if (saveLocation == null) {
-        return PdfResult(
-          success: false,
-          errorMessage: 'Save location not selected',
-        );
-      }
       await _buildPdfContent(spb);
-      return PdfResult(success: true, filePath: saveLocation);
+      return PdfResult(success: true);
     } catch (e) {
       return PdfResult(success: false, errorMessage: e.toString());
     }
   }
 
-  Future<bool> _checkPermission() async {
-    // For Android 13+ (API level 33+), we need to request specific permissions
-    if (await Permission.photos.request().isGranted) {
-      return true;
-    }
-
-    // For older Android versions, request storage permission
-    final status = await Permission.storage.request();
-    return status.isGranted;
-  }
-
-  Future<String?> _pickSaveLocation(String spbNumber) async {
-    try {
-      // Use FilePicker to select save location
-      final result = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save SPB PDF',
-        fileName:
-            'SPB_${spbNumber}_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf',
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-      );
-
-      return result;
-    } catch (e) {
-      // If FilePicker fails, fallback to default location
-      final directory = await getApplicationDocumentsDirectory();
-      final path = directory.path;
-      final fileName =
-          'SPB_${spbNumber}_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
-      return '$path/$fileName';
-    }
-  }
-
   Future<void> _buildPdfContent(SpbModel spb) async {
+    final downloadDir = Directory('/storage/emulated/0/Download');
+    if (!await downloadDir.exists()) {
+      await downloadDir.create(recursive: true);
+    }
+
     // Create document
     final PdfDocument document = PdfDocument();
     final dateTime = DateTime.parse(spb.tglAntarBuah);
@@ -108,7 +70,7 @@ class SpbPdfGenerator {
 
     // Header
     page.graphics.drawString(
-      'PT ${spb.kodeVendor}',
+      '${spb.namaVendor}',
       baseFont,
       bounds: Rect.fromLTWH(0, y, 300, 20),
     );
@@ -227,22 +189,19 @@ class SpbPdfGenerator {
       bounds: Rect.fromLTWH(370, y, 100, 20),
     );
     y += 100;
-    page.graphics.drawString(
-      '${spb.driverName}',
-      baseFont,
-      bounds: Rect.fromLTWH(30, y, 100, 20),
-    );
+
     page.graphics.drawString(
       '${spb.driverName}',
       baseFont,
       bounds: Rect.fromLTWH(200, y, 100, 20),
     );
     page.graphics.drawString(
-      '${spb.kodeVendor}',
+      '${spb.namaVendor}',
       baseFont,
       bounds: Rect.fromLTWH(370, y, 100, 20),
     );
 
+    //final directory = Directory('/storage/emulated/0/DCIM');
     final fileName =
         'SPB_${spb.noSpb}_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
 
@@ -252,11 +211,8 @@ class SpbPdfGenerator {
     // Save the PDF
     final List<int> bytes = await document.save();
     document.dispose();
-
-    // Get path
-    final Directory dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/${fileName}');
-
+    // ✅ 4. Simpan ke file
+    final file = File('${downloadDir.path}/${fileName}');
     await file.writeAsBytes(bytes);
   }
   // pw.Widget _buildPdfContent(SpbModel spb, String driverName) {

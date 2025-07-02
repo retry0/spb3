@@ -133,6 +133,7 @@ class _SpbQrCodeModalState extends State<SpbQrCodeModal> {
         imageData: pngBytes,
         imageName: imageName,
         quality: 100,
+        spb: widget.spb.noSpb,
       );
 
       // If dialog was dismissed without saving successfully
