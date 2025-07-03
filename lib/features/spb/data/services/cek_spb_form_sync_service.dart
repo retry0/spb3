@@ -9,6 +9,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../../core/config/api_endpoints.dart';
 import '../../../../core/utils/logger.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Service responsible for managing the synchronization of kendala forms
 /// between local storage and the remote API.
@@ -39,7 +40,7 @@ class CekFormSyncService {
 
   CekFormSyncService({
     required Dio dio,
-    this.maxRetries = 3,
+    this.maxRetries = int.parse(dotenv.env['MAX_RETRY_SYNC']),
     this.initialBackoff = const Duration(seconds: 5),
   }) : _dio = dio {
     // Initialize connectivity monitoring
@@ -242,7 +243,7 @@ class CekFormSyncService {
 
     try {
       final data = jsonDecode(formDataJson) as Map<String, dynamic>;
-      
+
       // Fix the boolean conversion issue - ensure isAnyHandlingEx is properly formatted
       if (data.containsKey('status')) {
         // Convert to string "1" or "0" as expected by the API
@@ -255,7 +256,10 @@ class CekFormSyncService {
           final value = data['status'] as String;
           if (value != "0" && value != "1") {
             data['status'] =
-                value == "true" || value == "yes" || value == "True" || int.tryParse(value) == 1
+                value == "true" ||
+                        value == "yes" ||
+                        value == "True" ||
+                        int.tryParse(value) == 1
                     ? "1"
                     : "0";
           }

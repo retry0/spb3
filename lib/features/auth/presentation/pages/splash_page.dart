@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/config/environment_config.dart';
 import '../../../../core/widgets/network_error_widget.dart';
 import '../bloc/auth_bloc.dart';
 
