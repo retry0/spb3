@@ -8,7 +8,7 @@ import 'dart:ui' as ui;
 import 'dart:typed_data';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:intl/intl.dart';
-import 'save_qr_dialog.dart';
+//import 'save_qr_dialog.dart';
 
 import '../../data/models/spb_model.dart';
 import '../../../../core/di/injection.dart';
@@ -95,142 +95,142 @@ class _SpbQrCodeModalState extends State<SpbQrCodeModal> {
     }
   }
 
-  Future<void> _saveQrCode() async {
-    setState(() {
-      _isSaving = true;
-      _errorMessage = null;
-    });
+  // Future<void> _saveQrCode() async {
+  //   setState(() {
+  //     _isSaving = true;
+  //     _errorMessage = null;
+  //   });
 
-    try {
-      // Capture QR code as image
-      final boundary =
-          _qrKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) {
-        setState(() {
-          _isSaving = false;
-          _errorMessage = 'Failed to capture QR code';
-        });
-        return;
-      }
+  //   try {
+  //     // Capture QR code as image
+  //     final boundary =
+  //         _qrKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+  //     if (boundary == null) {
+  //       setState(() {
+  //         _isSaving = false;
+  //         _errorMessage = 'Failed to capture QR code';
+  //       });
+  //       return;
+  //     }
 
-      final image = await boundary.toImage(pixelRatio: 3.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) {
-        setState(() {
-          _isSaving = false;
-          _errorMessage = 'Failed to convert QR code to image';
-        });
-        return;
-      }
+  //     final image = await boundary.toImage(pixelRatio: 3.0);
+  //     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+  //     if (byteData == null) {
+  //       setState(() {
+  //         _isSaving = false;
+  //         _errorMessage = 'Failed to convert QR code to image';
+  //       });
+  //       return;
+  //     }
 
-      final pngBytes = byteData.buffer.asUint8List();
+  //     final pngBytes = byteData.buffer.asUint8List();
 
-      // Show permission dialog and save image
-      final imageName =
-          'SPB_QR_${widget.spb.noSpb}_${DateTime.now().millisecondsSinceEpoch}';
-      final result = await SaveQrDialog.show(
-        context: context,
-        imageData: pngBytes,
-        imageName: imageName,
-        quality: 100,
-        spb: widget.spb.noSpb,
-      );
+  //     // Show permission dialog and save image
+  //     final imageName =
+  //         'SPB_QR_${widget.spb.noSpb}_${DateTime.now().millisecondsSinceEpoch}';
+  //     final result = await SaveQrDialog.show(
+  //       context: context,
+  //       imageData: pngBytes,
+  //       imageName: imageName,
+  //       quality: 100,
+  //       spb: widget.spb.noSpb,
+  //     );
 
-      // If dialog was dismissed without saving successfully
-      if (result != true) {
-        setState(() {
-          _isSaving = false;
-        });
-      } else {
-        setState(() {
-          _isSaving = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _isSaving = false;
-        _errorMessage = 'Error saving QR code: $e';
-      });
-    }
-    // setState(() {
-    //   _isSaving = true;
-    //   _errorMessage = null;
-    // });
+  //     // If dialog was dismissed without saving successfully
+  //     if (result != true) {
+  //       setState(() {
+  //         _isSaving = false;
+  //       });
+  //     } else {
+  //       setState(() {
+  //         _isSaving = false;
+  //       });
+  //     }
+  //   } catch (e) {
+  //     setState(() {
+  //       _isSaving = false;
+  //       _errorMessage = 'Error saving QR code: $e';
+  //     });
+  //   }
+  //   // setState(() {
+  //   //   _isSaving = true;
+  //   //   _errorMessage = null;
+  //   // });
 
-    // try {
-    //   // Request storage permission
-    //   PermissionStatus status;
+  //   // try {
+  //   //   // Request storage permission
+  //   //   PermissionStatus status;
 
-    //   // For Android 13+ (API level 33+), we need to request specific permissions
-    //   if (await Permission.photos.request().isGranted) {
-    //     status = PermissionStatus.granted;
-    //   } else {
-    //     // For older Android versions, request storage permission
-    //     status = await Permission.storage.request();
-    //   }
+  //   //   // For Android 13+ (API level 33+), we need to request specific permissions
+  //   //   if (await Permission.photos.request().isGranted) {
+  //   //     status = PermissionStatus.granted;
+  //   //   } else {
+  //   //     // For older Android versions, request storage permission
+  //   //     status = await Permission.storage.request();
+  //   //   }
 
-    //   if (!status.isGranted) {
-    //     setState(() {
-    //       _isSaving = false;
-    //       _errorMessage =
-    //           'Storage permission denied. Please grant permission in app settings.';
-    //     });
-    //     return;
-    //   }
+  //   //   if (!status.isGranted) {
+  //   //     setState(() {
+  //   //       _isSaving = false;
+  //   //       _errorMessage =
+  //   //           'Storage permission denied. Please grant permission in app settings.';
+  //   //     });
+  //   //     return;
+  //   //   }
 
-    //   // Capture QR code as image
-    //   final boundary =
-    //       _qrKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-    //   if (boundary == null) {
-    //     setState(() {
-    //       _isSaving = false;
-    //       _errorMessage = 'Failed to capture QR code';
-    //     });
-    //     return;
-    //   }
+  //   //   // Capture QR code as image
+  //   //   final boundary =
+  //   //       _qrKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+  //   //   if (boundary == null) {
+  //   //     setState(() {
+  //   //       _isSaving = false;
+  //   //       _errorMessage = 'Failed to capture QR code';
+  //   //     });
+  //   //     return;
+  //   //   }
 
-    //   final image = await boundary.toImage(pixelRatio: 3.0);
-    //   final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    //   if (byteData == null) {
-    //     setState(() {
-    //       _isSaving = false;
-    //       _errorMessage = 'Failed to convert QR code to image';
-    //     });
-    //     return;
-    //   }
+  //   //   final image = await boundary.toImage(pixelRatio: 3.0);
+  //   //   final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+  //   //   if (byteData == null) {
+  //   //     setState(() {
+  //   //       _isSaving = false;
+  //   //       _errorMessage = 'Failed to convert QR code to image';
+  //   //     });
+  //   //     return;
+  //   //   }
 
-    //   final pngBytes = byteData.buffer.asUint8List();
+  //   //   final pngBytes = byteData.buffer.asUint8List();
 
-    //   // Save to gallery
-    //   final result = await ImageGallerySaverPlus.saveImage(
-    //     pngBytes,
-    //     quality: 100,
-    //     name:
-    //         'SPB_QR_${widget.spb.noSpb}_${DateTime.now().millisecondsSinceEpoch}',
-    //   );
+  //   //   // Save to gallery
+  //   //   final result = await ImageGallerySaverPlus.saveImage(
+  //   //     pngBytes,
+  //   //     quality: 100,
+  //   //     name:
+  //   //         'SPB_QR_${widget.spb.noSpb}_${DateTime.now().millisecondsSinceEpoch}',
+  //   //   );
 
-    //   if (result['isSuccess']) {
-    //     ScaffoldMessenger.of(context).showSnackBar(
-    //       const SnackBar(
-    //         content: Text('QR code saved to gallery'),
-    //         backgroundColor: Colors.green,
-    //       ),
-    //     );
-    //   } else {
-    //     setState(() {
-    //       _errorMessage = 'Failed to save QR code: ${result['errorMessage']}';
-    //     });
-    //   }
-    // } catch (e) {
-    //   setState(() {
-    //     _errorMessage = 'Error saving QR code: $e';
-    //   });
-    // } finally {
-    //   setState(() {
-    //     _isSaving = false;
-    //   });
-    // }
-  }
+  //   //   if (result['isSuccess']) {
+  //   //     ScaffoldMessenger.of(context).showSnackBar(
+  //   //       const SnackBar(
+  //   //         content: Text('QR code saved to gallery'),
+  //   //         backgroundColor: Colors.green,
+  //   //       ),
+  //   //     );
+  //   //   } else {
+  //   //     setState(() {
+  //   //       _errorMessage = 'Failed to save QR code: ${result['errorMessage']}';
+  //   //     });
+  //   //   }
+  //   // } catch (e) {
+  //   //   setState(() {
+  //   //     _errorMessage = 'Error saving QR code: $e';
+  //   //   });
+  //   // } finally {
+  //   //   setState(() {
+  //   //     _isSaving = false;
+  //   //   });
+  //   // }
+  // }
 
   String _generateQrContent() {
     // Concatenate SPB data with | as separator
@@ -518,16 +518,16 @@ class _SpbQrCodeModalState extends State<SpbQrCodeModal> {
           ),
         ),
         const SizedBox(width: 8),
-        ElevatedButton.icon(
-          icon: const Icon(Icons.save_alt, size: 16),
-          label: const Text('Save QR Code'),
-          onPressed: _isSaving ? null : _saveQrCode,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          ),
-        ),
+        // ElevatedButton.icon(
+        //   icon: const Icon(Icons.save_alt, size: 16),
+        //   label: const Text('Save QR Code'),
+        //   onPressed: _isSaving ? null : _saveQrCode,
+        //   style: ElevatedButton.styleFrom(
+        //     backgroundColor: Theme.of(context).colorScheme.primary,
+        //     foregroundColor: Colors.white,
+        //     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        //   ),
+        // ),
       ],
     );
   }
