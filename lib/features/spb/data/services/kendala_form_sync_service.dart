@@ -11,6 +11,7 @@ import 'package:sqflite/sqflite.dart';
 import '../../../../core/config/api_endpoints.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../../core/storage/database_helper.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Service responsible for managing the synchronization of kendala forms
 /// between local storage and the remote API.
@@ -43,9 +44,11 @@ class KendalaFormSyncService {
   KendalaFormSyncService({
     required Dio dio,
     required DatabaseHelper dbHelper,
-    this.maxRetries = 3,
+    int? maxRetries,
     this.initialBackoff = const Duration(seconds: 5),
-  }) : _dio = dio,
+  }) : maxRetries =
+           maxRetries ?? int.tryParse(dotenv.env['MAX_RETRY_SYNC'] ?? '0') ?? 0,
+       _dio = dio,
        _dbHelper = dbHelper {
     // Initialize connectivity monitoring
     _initConnectivityMonitoring();
@@ -87,7 +90,10 @@ class KendalaFormSyncService {
   /// Start background sync timer
   void _startBackgroundSync() {
     _backgroundSyncTimer?.cancel();
-    _backgroundSyncTimer = Timer.periodic(const Duration(minutes: 15), (_) {
+    final syncTimerMinutes = int.tryParse(dotenv.env['SYNC_TIMER'] ?? '5') ?? 5;
+    _backgroundSyncTimer = Timer.periodic(Duration(minutes: syncTimerMinutes), (
+      _,
+    ) {
       syncPendingForms(silent: true);
     });
   }

@@ -40,9 +40,11 @@ class CekFormSyncService {
 
   CekFormSyncService({
     required Dio dio,
-    this.maxRetries = int.parse(dotenv.env['MAX_RETRY_SYNC']),
+    int? maxRetries,
     this.initialBackoff = const Duration(seconds: 5),
-  }) : _dio = dio {
+  }) : maxRetries =
+           maxRetries ?? int.tryParse(dotenv.env['MAX_RETRY_SYNC'] ?? '0') ?? 0,
+       _dio = dio {
     // Initialize connectivity monitoring
     _initConnectivityMonitoring();
     // Start background sync timer
@@ -81,7 +83,10 @@ class CekFormSyncService {
   /// Start background sync timer
   void _startBackgroundSync() {
     _backgroundSyncTimer?.cancel();
-    _backgroundSyncTimer = Timer.periodic(const Duration(minutes: 15), (_) {
+    final syncTimerMinutes = int.tryParse(dotenv.env['SYNC_TIMER'] ?? '5') ?? 5;
+    _backgroundSyncTimer = Timer.periodic(Duration(minutes: syncTimerMinutes), (
+      _,
+    ) {
       syncPendingForms(silent: true);
     });
   }
