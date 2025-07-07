@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_windowmanager_plus/flutter_windowmanager_plus.dart';
 
 class MainPage extends StatefulWidget {
   final Widget child;
@@ -27,6 +28,7 @@ class _MainPageState extends State<MainPage>
 
     // Set initial index based on current route
     _updateSelectedIndex();
+    _secureScreen();
   }
 
   // void _updateSelectedIndex() {
@@ -39,6 +41,12 @@ class _MainPageState extends State<MainPage>
   //     setState(() => _selectedIndex = 3);
   //   }
   // }
+
+  Future<void> _secureScreen() async {
+    await FlutterWindowManagerPlus.addFlags(
+      FlutterWindowManagerPlus.FLAG_SECURE,
+    );
+  }
 
   @override
   void didUpdateWidget(MainPage oldWidget) {
