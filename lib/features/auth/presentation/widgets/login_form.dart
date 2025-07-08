@@ -5,6 +5,7 @@ import 'dart:async';
 
 import '../../../../core/utils/username_validator.dart';
 import '../bloc/auth_bloc.dart';
+import '../widgets/androidID.dart';
 
 class LoginForm extends StatefulWidget {
   const LoginForm({super.key});
@@ -246,7 +247,7 @@ class _LoginFormState extends State<LoginForm>
               //     child: const Text('Forgot Password?'),
               //   ),
               // ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
               // Login button
               BlocBuilder<AuthBloc, AuthState>(
@@ -294,7 +295,37 @@ class _LoginFormState extends State<LoginForm>
                 },
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
+
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => DeviceIdPage()),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Lihat Device ID',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
               // Retry connection button when offline
               if (_isOffline)

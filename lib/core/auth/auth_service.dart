@@ -13,6 +13,8 @@ import '../storage/secure_storage.dart';
 import '../utils/logger.dart';
 import 'token_manager.dart';
 
+import 'dart:io';
+
 /// Service responsible for authentication operations
 class AuthService {
   final Dio _dio;
@@ -128,7 +130,8 @@ class AuthService {
     }
   }
 
-  /// Login with username and password
+  /// Login with username
+  ///  and password
   Future<bool> login(String username, String password) async {
     try {
       authState.value = AuthState.authenticating;
@@ -149,7 +152,15 @@ class AuthService {
         ApiEndpoints.login,
         data: {'userName': username, 'password': password},
       );
+      //final deviceInfo = DeviceInfoPlugin();
+      // final androidInfo = await UniqueIdentifier.serial;
+      // //String androidId = androidInfo.id ?? 'Unknown';
 
+      //DeviceInfo? dInfo = await DeviceImei().getDeviceInfo();
+      //final info = await DeviceInfoPlugin().androidInfo;
+      //print("Android ID: ${info.id}");
+
+      AppLogger.info('Login response: ${response.data}');
       if (response.statusCode == 200 && response.data != null) {
         // Extract tokens from response
         final responseData = response.data['data'] ?? response.data;

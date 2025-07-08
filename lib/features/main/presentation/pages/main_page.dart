@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_windowmanager_plus/flutter_windowmanager_plus.dart';
+import 'package:spb/core/utils/logger.dart';
 
 class MainPage extends StatefulWidget {
   final Widget child;
