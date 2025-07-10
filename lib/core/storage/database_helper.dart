@@ -67,6 +67,7 @@ class DatabaseHelper {
           id TEXT PRIMARY KEY,
           UserName TEXT UNIQUE NOT NULL,
           Nama TEXT NOT NULL,
+          DeviceID TEXT  NULL,
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL,
           synced_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
@@ -831,6 +832,8 @@ class DatabaseHelper {
     String userId,
     String username,
     String token, {
+    String? Nama,
+    String? deviceId,
     int? expiresAt,
   }) async {
     final db = await database;
@@ -838,7 +841,13 @@ class DatabaseHelper {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
       // First, ensure the user exists in the users table
-      final userExists = await _ensureUserExists(db, userId, username);
+      final userExists = await _ensureUserExists(
+        db,
+        userId,
+        username,
+        Nama,
+        deviceId,
+      );
       if (!userExists) {
         throw Exception(
           'User does not exist in the database. Cannot save token.',
@@ -874,6 +883,8 @@ class DatabaseHelper {
     Database db,
     String userId,
     String username,
+    String? Nama,
+    String? deviceId,
   ) async {
     final users = await db.query(
       'users',
@@ -888,7 +899,8 @@ class DatabaseHelper {
         await db.insert('users', {
           'id': userId,
           'UserName': username,
-          'Nama': username, // Use username as name if we don't have it
+          'Nama': Nama,
+          'DeviceID': deviceId,
           'created_at': now,
           'updated_at': now,
         });
