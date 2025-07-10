@@ -43,6 +43,8 @@ class TokenManager {
     required String refreshToken,
     required String userId,
     required String username,
+    String? Nama,
+    String? deviceId,
   }) async {
     try {
       // Store tokens in secure storage
@@ -55,12 +57,19 @@ class TokenManager {
 
       final accessTokenExpiry = accessTokenData['exp'] as int?;
       final refreshTokenExpiry = refreshTokenData['exp'] as int?;
+      final deviceId = accessTokenData['DeviceID'] as String?;
+      final Nama = accessTokenData['Nama'] as String?;
+
+      AppLogger.info('accessTokenData: $accessTokenData');
+      AppLogger.info('DeviceID: $deviceId');
 
       // Store tokens in database for offline access
       await _dbHelper.saveAuthToken(
         userId,
         username,
         accessToken,
+        Nama: Nama,
+        deviceId: deviceId,
         expiresAt: accessTokenExpiry,
       );
 

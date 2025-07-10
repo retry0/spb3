@@ -12,6 +12,7 @@ import '../../domain/usecases/logout_usecase.dart';
 import '../../domain/usecases/refresh_token_usecase.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../../core/error/failures.dart';
+import '../../../../core/utils/device_id_helper.dart';
 part 'auth_event.dart';
 part 'auth_state.dart';
 
@@ -178,17 +179,27 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(const AuthLoading());
+    final deviceId = await DeviceIdHelper.getDeviceId();
 
     // Reset retry counter on new login attempt
     _retryAttempt = 0;
 
     // Use auth service for login
-    final success = await authService.login(event.userName, event.password);
+    final success = await authService.login(
+      event.userName,
+      event.password,
+      deviceId,
+    );
 
     if (success) {
       // Get user data
       final userResult = await loginUseCase.repository.getCurrentUser();
-
+      print('UserResult $userResult');
+      if (userResult.isLeft()) {
+        // If user data retrieval failed, emit unauthenticated state
+        emit(const AuthUnauthenticated());
+        return;
+      }
       await userResult.fold(
         (failure) async {
           emit(AuthError(failure.message));
@@ -207,6 +218,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
     } else {
       // Login failed
+      print('test');
       emit(const AuthError('Invalid credentials'));
     }
   }

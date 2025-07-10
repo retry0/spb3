@@ -132,7 +132,7 @@ class AuthService {
 
   /// Login with username
   ///  and password
-  Future<bool> login(String username, String password) async {
+  Future<bool> login(String username, String password, String deviceId) async {
     try {
       authState.value = AuthState.authenticating;
 
@@ -174,6 +174,8 @@ class AuthService {
 
         // Extract user ID from token
         final tokenData = JwtDecoder.decode(accessToken);
+        final String DeviceIDData = tokenData['DeviceID'];
+        AppLogger.info('TokenData ${tokenData['DeviceID']}');
         final userId = tokenData['Id'] ?? tokenData['sub'];
 
         // Store tokens
@@ -186,9 +188,21 @@ class AuthService {
 
         // Store credentials for offline login
         await _storeOfflineCredentials(username, password);
+        AppLogger.info('deviceId --Device $deviceId');
+        AppLogger.info('deviceId --Backend ${tokenData['DeviceID']}');
 
-        authState.value = AuthState.authenticated;
-        return true;
+        //Check DeviceID
+        if (deviceId == DeviceIDData) {
+          authState.value = AuthState.authenticated;
+          print('true');
+
+          return true;
+        } else {
+          authState.value = AuthState.unauthenticated;
+          print('false');
+
+          return false;
+        }
       } else {
         authState.value = AuthState.unauthenticated;
         return false;
