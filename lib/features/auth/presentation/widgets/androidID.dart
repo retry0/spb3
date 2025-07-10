@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/services.dart';
+import '../../../../core/utils/logger.dart';
+import '../../../../core/utils/device_id_helper.dart';
 
 class AndroidIDPage extends StatelessWidget {
   const AndroidIDPage({super.key});
@@ -19,22 +20,32 @@ class DeviceIdPage extends StatefulWidget {
 }
 
 class _DeviceIdPageState extends State<DeviceIdPage> {
-  String _deviceId = 'Unknown';
+  String _deviceId = 'Loading...';
 
   Future<void> _getDeviceId() async {
-    final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-    String deviceId;
+    // final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+    // String deviceId;
+
+    // try {
+    //   final androidInfo = await deviceInfo.androidInfo;
+    //   deviceId = androidInfo.id; // Android ID
+    //   AppLogger.info('Device ID $deviceId');
+    // } catch (e) {
+    //   deviceId = 'Gagal mendapatkan Device ID';
+    // }
 
     try {
-      final androidInfo = await deviceInfo.androidInfo;
-      deviceId = androidInfo.id; // Android ID
-    } catch (e) {
-      deviceId = 'Gagal mendapatkan Device ID';
-    }
+      final deviceId = await DeviceIdHelper.getDeviceId();
 
-    setState(() {
-      _deviceId = deviceId;
-    });
+      AppLogger.info('Device ID $deviceId');
+      setState(() {
+        _deviceId = deviceId;
+      });
+    } catch (e) {
+      setState(() {
+        _deviceId = 'Gagal mendapatkan Device ID';
+      });
+    }
   }
 
   void _copyToClipboard() {
