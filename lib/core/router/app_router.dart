@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:spb/core/utils/logger.dart';
 
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
@@ -28,6 +29,7 @@ class AppRouter {
       if (isLoggedIn &&
           (state.matchedLocation == '/login' ||
               state.matchedLocation == '/splash')) {
+        AppLogger.info('Login berhasil');
         return '/spb'; // Redirect to SPB page or home page
       }
 
